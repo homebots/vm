@@ -1,3 +1,4 @@
 firmware/
 build/
 .vscode
+.DS_Store
