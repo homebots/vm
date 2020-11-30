@@ -1,10 +1,10 @@
-FLASH_SPEED   ?= 230400
+FLASH_SPEED   ?= 460800
 ESP_PORT      ?= $$(ls /dev/tty*usbserial*)
 
-.PHONY: build flash
+.PHONY: build flash asm sym
 
 build:
-	docker run --rm -e LIBS -v$$(pwd)/:/home/espbuilder/project darlanalves/homebots-sdk
+	docker run --rm -e VERBOSE -v$$(pwd)/:/home/espbuilder/project darlanalves/homebots-sdk make all
 
 flash:
 	esptool.py --baud $(FLASH_SPEED) --port $(ESP_PORT) write_flash --compress -fm qio -fs 512KB 0x00000 firmware/0x00000.bin 0x10000 firmware/0x10000.bin 0x7c000 firmware/0x7c000.bin
