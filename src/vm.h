@@ -20,6 +20,7 @@ const uint8_t c_sysinfo = 0xfd;        // -
 const uint8_t c_restart = 0xfc;        // -
 const uint8_t c_debug = 0xfb;          // -
 const uint8_t c_yield = 0xfa;          // -
+const uint8_t c_dump = 0xf9;           // -
 const uint8_t c_noop = 0x01;           // -
 const uint8_t c_delay = 0x02;          // uint32 delay
 const uint8_t c_print = 0x03;          // uint8[] message
@@ -38,7 +39,7 @@ const uint8_t c_jumpif = 0x0f;         // uint8 slot, uint32 address
 const uint8_t c_xor = 0x10;            // uint8 slot, uint8 a, uint8 b
 const uint8_t c_and = 0x11;            // uint8 slot, uint8 a, uint8 b
 const uint8_t c_or = 0x12;             // uint8 slot, uint8 a, uint8 b
-const uint8_t c_not = 0x13;            // uint8 slot, uint8 a
+const uint8_t c_not = 0x13;            // uint8 slot
 const uint8_t c_inc = 0x14;            // uint8 slot
 const uint8_t c_dec = 0x15;            // uint8 slot
 const uint8_t c_add = 0x16;            // uint8 slot, uint8 slot
@@ -54,24 +55,25 @@ const uint8_t c_wificonnect = 0x3a;    // uint8 pin, uint8 slot
 const uint8_t c_wifidisconnect = 0x3b; // uint8 pin, uint8 slot
 const uint8_t c_wifistatus = 0x3c;     // uint8 pin, uint8 slot
 const uint8_t c_wifilist = 0x3e;       // uint8 pin, uint8 slot
+const uint8_t c_sleep = 0x3f;          // uint8 mode, uint32 time
+const uint8_t c_i2setup = 0x40;        // -
+const uint8_t c_i2start = 0x41;        // -
+const uint8_t c_i2stop = 0x42;         // -
+const uint8_t c_i2write = 0x43;        // uint8 byte
+const uint8_t c_i2read = 0x44;         // uint8 slot
+const uint8_t c_i2setack = 0x45;       // uint8 byte
+const uint8_t c_i2getack = 0x46;       // uint8 byte
+const uint8_t c_i2find = 0x48;         // uint8 slot
+const uint8_t c_i2writeack = 0x49;     // uint32 length, uint* bytes
+const uint8_t c_i2writeack_b = 0x4a;   // uint8 byte
 
-const uint8_t c_sleep = 0x3f; // uint8 mode, uint64 time
-const uint8_t c_i2setup = 0x40;
-const uint8_t c_i2start = 0x41;
-const uint8_t c_i2stop = 0x42;
-const uint8_t c_i2write = 0x43;
-const uint8_t c_i2read = 0x44;
-const uint8_t c_i2setack = 0x45;
-const uint8_t c_i2getack = 0x46;
-const uint8_t c_i2find = 0x48;
-const uint8_t c_i2writeack = 0x49;
-const uint8_t c_i2writeack_b = 0x4a;
 typedef struct
 {
   uint32_t programCounter = 0;
   void *arguments[MAX_ARGUMENTS];
   uint32_t slot[MAX_SLOTS];
-  uint8_t *program;
+  uint8_t *program = NULL;
+  int length;
   os_timer_t cycleTimer;
 } EspVM;
 
@@ -156,6 +158,7 @@ uint32_t vm_readStringLength(EspVM *vm)
 void ICACHE_FLASH_ATTR vm_dump(EspVM *vm)
 {
   int i;
+  LOG("PC %ld\n", vm->programCounter);
   LOG("Slots\n");
 
   for (i = 0; i < MAX_SLOTS; i++)
@@ -164,6 +167,15 @@ void ICACHE_FLASH_ATTR vm_dump(EspVM *vm)
   }
 
   LOG("\n");
+}
+
+void ICACHE_FLASH_ATTR vm_dump_program(EspVM *vm)
+{
+  int i = 0;
+  while (i < vm->length)
+  {
+    os_printf("0x%.2x ", vm->program[i++]);
+  }
 }
 
 void ICACHE_FLASH_ATTR vm_yield(EspVM *vm)
@@ -185,6 +197,11 @@ void ICACHE_FLASH_ATTR vm_cycle(EspVM *vm)
   {
     LOG("halt\n");
     vm_advance(vm, 1);
+    return;
+  }
+
+  if (vm->programCounter == vm->length - 1)
+  {
     return;
   }
 
@@ -214,6 +231,7 @@ void ICACHE_FLASH_ATTR vm_cycle(EspVM *vm)
 
   case c_sysinfo:
     os_printf("Chip %ld\n", system_get_chip_id());
+    os_printf("SDK %s\n", system_get_sdk_version());
     os_printf("Time %ld\n", system_get_time() / 1000);
     system_print_meminfo();
     os_printf("Free %ld bytes\n", system_get_free_heap_size());
@@ -338,10 +356,9 @@ void ICACHE_FLASH_ATTR vm_cycle(EspVM *vm)
     break;
 
   case c_not:
-    arg_byte(vm, 0); // slot X
-    arg_byte(vm, 1); // slot A
-    LOG("not [%d], [%d]\n", read_argument(vm, 0), read_argument(vm, 1));
-    vm->slot[read_argument(vm, 0)] = !vm->slot[read_argument(vm, 1)];
+    arg_byte(vm, 0); // slot
+    LOG("not [%d]\n", read_argument(vm, 0));
+    vm->slot[read_argument(vm, 0)] = !vm->slot[read_argument(vm, 0)];
     break;
 
   case c_inc:
@@ -464,11 +481,12 @@ void ICACHE_FLASH_ATTR vm_cycle(EspVM *vm)
     break;
 
   case c_i2writeack:
+    int length;
     arg_integer(vm, 0); // length
-    copy_int32(&vm->slot[0], vm->arguments[0]);
+    copy_int32(&length, vm->arguments[0]);
 
-    LOG("i2writeack %d\n", vm->slot[0]);
-    while (vm->slot[0]--)
+    LOG("i2writeack %d bytes\n", length);
+    while (length--)
     {
       arg_byte(vm, 1);
       LOG("0x%.2x ", read_argument(vm, 1));
@@ -478,7 +496,7 @@ void ICACHE_FLASH_ATTR vm_cycle(EspVM *vm)
     break;
 
   case c_i2writeack_b:
-    arg_byte(vm, 0);
+    arg_byte(vm, 0); // byte
     LOG("i2writeack_b 0x%.2x\n", read_argument(vm, 0));
     i2c_writeByteAndAck(read_argument(vm, 0));
     break;
@@ -508,10 +526,16 @@ void ICACHE_FLASH_ATTR vm_cycle(EspVM *vm)
     vm->slot[read_argument(vm, 0)] = i2c_findDevice();
     break;
 
-  default:
-    os_printf("\n {!} Invalid opcode 0x%.2x!\n", next);
+  case c_dump:
     vm_dump(vm);
-    vm_reset(vm);
+    vm_dump_program(vm);
+    break;
+
+  default:
+    os_printf("\n {!} Invalid opcode 0x%.2x at %d!\n", next, vm->programCounter);
+    vm_dump(vm);
+    vm_dump_program(vm);
+    return;
   }
 
   vm_tick(vm, cycleDelay);
@@ -520,11 +544,20 @@ void ICACHE_FLASH_ATTR vm_cycle(EspVM *vm)
 void vm_init(EspVM *vm)
 {
   os_timer_setfn(&vm->cycleTimer, (os_timer_func_t *)&vm_cycle, vm);
+  vm_reset(vm);
 }
 
-void vm_load(EspVM *vm, uint8_t *program)
+void vm_load(EspVM *vm, uint8_t *program, int length)
 {
-  vm->program = program;
+  if (vm->program != NULL)
+  {
+    os_free(vm->program);
+  }
+
+  vm->program = (uint8_t *)os_zalloc(length);
+  vm->length = length;
+  os_memcpy(vm->program, program, length);
+
   vm_reset(vm);
   vm_yield(vm);
 }

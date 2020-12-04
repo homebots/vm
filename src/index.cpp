@@ -3,7 +3,8 @@ extern "C"
 {
 #endif
 
-// #define DEBUG
+  // #define DEBUG
+
 #define SERIAL_SPEED 115200
 
 #include "vm.h"
@@ -43,7 +44,10 @@ extern "C"
     case WS_OPCODE_BINARY:
     case WS_OPCODE_TEXT:
       LOG("LOAD %d bytes\n", length);
-      vm_load(&vm, (uint8_t *)message);
+      if (length)
+      {
+        vm_load(&vm, (uint8_t *)message, length);
+      }
       break;
     }
   }
@@ -73,7 +77,7 @@ extern "C"
     os_timer_arm(&webSocketCheck, 3000, 1);
 
     vm_init(&vm);
-    vm_load(&vm, program);
+    vm_load(&vm, program, 22);
   }
 
 #ifdef __cplusplus
