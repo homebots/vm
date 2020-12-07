@@ -1,11 +1,9 @@
-#include "sdk/sdk.h"
-
+#define USE_US_TIMER 1
 #define MAX_ARGUMENTS 6
 #define MAX_SLOTS 16
 #define MAX_DELAY 6871000
 
-#define read_argument(vm, index) (*((volatile uint8_t *)(vm->arguments[index])))
-#define read_argument32(vm, index) (*((volatile uint32_t *)(vm->arguments[index])))
+#include "sdk/sdk.h"
 
 #define arg_byte(vm, index) vm->arguments[index] = (void *)vm_readByte(vm);
 #define arg_integer(vm, index) vm->arguments[index] = (void *)vm_readInt(vm);
@@ -26,7 +24,7 @@ const uint8_t c_delay = 0x02;          // uint32 delay
 const uint8_t c_print = 0x03;          // uint8[] message
 const uint8_t c_jump = 0x04;           // uint32 address
 const uint8_t c_memget = 0x05;         // uint8 slot, int32 address
-const uint8_t c_memset = 0x06;         // uint8 slot, int32 address
+const uint8_t c_memset = 0x06;         // int32 address, uint8 slot
 const uint8_t c_push_b = 0x07;         // uint8 slot, int8 value
 const uint8_t c_push_i = 0x08;         // uint8 slot, int32 value
 const uint8_t c_gt = 0x09;             // uint8 slot, uint8 b, uint8 b
@@ -47,10 +45,13 @@ const uint8_t c_sub = 0x17;            // uint8 slot, uint8 slot
 const uint8_t c_mul = 0x18;            // uint8 slot, uint8 slot
 const uint8_t c_div = 0x19;            // uint8 slot, uint8 slot
 const uint8_t c_mod = 0x1a;            // uint8 slot, uint8 slot
+const uint8_t c_copy = 0x1b;           // uint8 dest, uint8 src
+const uint8_t c_delay_v = 0x1c;        // uint8 slot
 const uint8_t c_iowrite = 0x31;        // uint8 pin, uint8 slot
 const uint8_t c_ioread = 0x32;         // uint8 slot, uint8 pin
 const uint8_t c_iomode = 0x35;         // uint8 pin, uint8 slot
 const uint8_t c_iotype = 0x36;         // uint8 pin, uint8 slot
+const uint8_t c_ioallout = 0x37;       // -
 const uint8_t c_wificonnect = 0x3a;    // uint8 pin, uint8 slot
 const uint8_t c_wifidisconnect = 0x3b; // uint8 pin, uint8 slot
 const uint8_t c_wifistatus = 0x3c;     // uint8 pin, uint8 slot
@@ -71,6 +72,7 @@ typedef struct
 {
   uint32_t programCounter = 0;
   void *arguments[MAX_ARGUMENTS];
+  void *pointer = 0;
   uint32_t slot[MAX_SLOTS];
   uint8_t *program = NULL;
   int length;
@@ -78,6 +80,19 @@ typedef struct
 } EspVM;
 
 static Wifi wifiConnection;
+
+uint8_t read_argument(EspVM *vm, uint8_t index)
+{
+  return *((volatile uint8_t *)(vm->arguments[index]));
+}
+
+uint32_t read_argument32(EspVM *vm, uint8_t index)
+{
+  return (uint32_t)((((uint8_t *)vm->arguments[index])[3]) & 0xff) << 24 |
+         (uint32_t)((((uint8_t *)vm->arguments[index])[2]) & 0xff) << 16 |
+         (uint32_t)((((uint8_t *)vm->arguments[index])[1]) & 0xff) << 8 |
+         (uint32_t)((((uint8_t *)vm->arguments[index])[0]) & 0xff);
+}
 
 bool vm_isWifiConnected()
 {
@@ -108,10 +123,10 @@ void ICACHE_FLASH_ATTR vm_advance(EspVM *vm, uint32_t howMuch)
 
 uint8_t *vm_readByte(EspVM *vm)
 {
-  uint8_t *pointer = &(vm->program[vm->programCounter]);
+  vm->pointer = &(vm->program[vm->programCounter]);
   vm_advance(vm, 1);
 
-  return pointer;
+  return (uint8_t *)vm->pointer;
 }
 
 uint32_t *vm_readInt(EspVM *vm)
@@ -200,7 +215,7 @@ void ICACHE_FLASH_ATTR vm_cycle(EspVM *vm)
     return;
   }
 
-  if (vm->programCounter == vm->length - 1)
+  if (vm->programCounter >= vm->length - 1)
   {
     return;
   }
@@ -215,10 +230,11 @@ void ICACHE_FLASH_ATTR vm_cycle(EspVM *vm)
 
   case c_yield:
     vm_yield(vm);
-    break;
+    return;
 
   case c_debug:
     arg_byte(vm, 0);
+
     if (read_argument(vm, 0))
     {
       system_uart_de_swap();
@@ -300,18 +316,31 @@ void ICACHE_FLASH_ATTR vm_cycle(EspVM *vm)
     }
     break;
 
+  case c_ioallout:
+    pinType(0, 0);
+    pinType(1, 3);
+    pinType(2, 0);
+    pinType(3, 3);
+    pinMode(0, PinOutput);
+    pinMode(1, PinOutput);
+    pinMode(2, PinOutput);
+    pinMode(3, PinOutput);
+    break;
+
   case c_memget:
     arg_byte(vm, 0);    // slot
     arg_integer(vm, 1); // *ptr (address)
-    LOG("memget [%d], *%ld\n", read_argument(vm, 0), read_argument32(vm, 1));
-    vm->slot[read_argument(vm, 0)] = *((volatile uint32_t *)(vm->arguments[1]));
+
+    LOG("memget [%d], %ld\n", read_argument(vm, 0), read_argument32(vm, 1));
+    vm->slot[read_argument(vm, 0)] = READ_PERI_REG(read_argument32(vm, 1));
     break;
 
   case c_memset:
     arg_integer(vm, 0); // *ptr (address)
     arg_byte(vm, 1);    // slot
-    LOG("memset @%ld, [%d]\n", read_argument32(vm, 0), read_argument(vm, 1));
-    *((volatile uint32_t *)(vm->arguments[0])) = vm->slot[read_argument(vm, 1)];
+
+    LOG("memset %ld, [%d]\n", read_argument32(vm, 0), read_argument(vm, 1));
+    WRITE_PERI_REG(read_argument32(vm, 0), vm->slot[read_argument(vm, 1)]);
     break;
 
   case c_push_b:
@@ -327,6 +356,14 @@ void ICACHE_FLASH_ATTR vm_cycle(EspVM *vm)
 
     LOG("push_i [%d], %ld\n", read_argument(vm, 0), read_argument32(vm, 1));
     vm->slot[read_argument(vm, 0)] = read_argument32(vm, 1);
+    break;
+
+  case c_copy:
+    arg_byte(vm, 0); // slot
+    arg_byte(vm, 1); // slot
+
+    LOG("copy [%d], %ld\n", read_argument(vm, 0), read_argument(vm, 1));
+    vm->slot[read_argument(vm, 0)] = vm->slot[read_argument(vm, 1)];
     break;
 
   case c_xor:
@@ -432,6 +469,18 @@ void ICACHE_FLASH_ATTR vm_cycle(EspVM *vm)
   case c_delay:
     arg_integer(vm, 0); // milliseconds
     copy_int32(&cycleDelay, vm->arguments[0]);
+
+    if (cycleDelay > MAX_DELAY)
+    {
+      cycleDelay = MAX_DELAY;
+    }
+
+    LOG("delay %ld\n", cycleDelay);
+    break;
+
+  case c_delay_v:
+    arg_byte(vm, 0); // slot
+    cycleDelay = vm->slot[read_argument(vm, 0)];
 
     if (cycleDelay > MAX_DELAY)
     {

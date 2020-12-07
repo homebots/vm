@@ -3,8 +3,7 @@ extern "C"
 {
 #endif
 
-  // #define DEBUG
-
+#define DEBUG
 #define SERIAL_SPEED 115200
 
 #include "vm.h"
@@ -33,8 +32,6 @@ extern "C"
       't',
       's',
       0,
-      c_debug,
-      1,
       c_halt};
 
   void onReceive(struct ws_info *wsInfo, int length, char *message, int opCode)
@@ -55,7 +52,10 @@ extern "C"
   void connectWebSocket()
   {
     if (!vm_isWifiConnected())
+    {
+      LOG("Not connnected\n");
       return;
+    }
 
     if (webSocket.connectionState != CS_CONNECTED && webSocket.connectionState != CS_CONNECTING)
     {
@@ -77,7 +77,7 @@ extern "C"
     os_timer_arm(&webSocketCheck, 3000, 1);
 
     vm_init(&vm);
-    vm_load(&vm, program, 22);
+    vm_load(&vm, program, 20);
   }
 
 #ifdef __cplusplus
