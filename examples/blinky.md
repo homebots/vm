@@ -1,19 +1,8 @@
-  c_not,
-    slot0,
-    slot0,
-  c_iowrite,
-    pin0,
-    slot0,
-  c_iowrite,
-    pin2,
-    slot0,
-  c_delay,
-    0xe8,
-    0x03,
-    0x00,
-    0x00,
-  c_jump,
-    0x00,
-    0x00,
-    0x00,
-    0x00,
+```
+@BEGIN
+  not       #0, #0,
+  iowrite   pin 0, #0,
+  iowrite   pin 2, #0,
+  delay     500
+  jump to BEGIN
+```
