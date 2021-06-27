@@ -1,0 +1,18 @@
+a2      return pointer
+a2..an  arguments
+ret.n   return value at a2
+
+* Register use:
+ *	a0/ return address
+ *	a1/ stack pointer
+ *	a2/ return value
+ *	a3/ src
+ *	a4/ length
+ *	a5/ dst
+ *	a6/ tmp
+ *	a7/ tmp
+ *	a8/ tmp
+ *	a9/ tmp
+ *	a10/ tmp
+ *	a11/ tmp
+ *	a12/ tmp
