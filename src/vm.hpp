@@ -1,12 +1,7 @@
-#include "c_types.h"
-#include "ets_sys.h"
-#include "mem.h"
-#include "osapi.h"
-#include "user_interface.h"
-#include "pins.h"
-// #include "i2c.h"
+#include "sdk/sdk.h"
 
 #define MAX_DELAY 6871000
+#define MAX_SLOTS 256
 
 typedef unsigned char *string;
 
@@ -22,42 +17,48 @@ typedef unsigned int *uintref;
 #define TRACE(...)
 #endif
 
-const byte op_halt = 0xfe;    // -
-const byte op_restart = 0xfc; // -
-const byte op_sysinfo = 0xfd; // -
-const byte op_debug = 0xfb;   // byte enable
-// const byte op_dump = 0xf9;           // -
-const byte op_noop = 0x01; // -
-// const byte op_yield = 0xfa;          // -
-const byte op_delay = 0x02;  // uint32 delay
-const byte op_print = 0x03;  // uint8[] message
-const byte op_jumpto = 0x04; // uint32 address
-const byte op_jumpif = 0x0f; // uint8 slot, uint32 address
-const byte op_memget = 0x05; // uint8 slot, int32 address
-const byte op_memset = 0x06; // int32 address, uint8 slot
-// const byte op_gt = 0x09;             // uint8 slot, uint8 b, uint8 b
-// const byte op_gte = 0x0a;            // uint8 slot, uint8 b, uint8 b
-// const byte op_lt = 0x0b;             // uint8 slot, uint8 b, uint8 b
-// const byte op_lte = 0x0c;            // uint8 slot, uint8 b, uint8 b
-// const byte op_equal = 0x0d;          // uint8 slot, uint8 b, uint8 b
-// const byte op_notequal = 0x0e;       // uint8 slot, uint8 b, uint8 b
-// const byte op_xor = 0x10;            // uint8 slot, uint8 a, uint8 b
-// const byte op_and = 0x11;            // uint8 slot, uint8 a, uint8 b
-// const byte op_or = 0x12;             // uint8 slot, uint8 a, uint8 b
-// const byte op_not = 0x13;            // uint8 slot
-// const byte op_inc = 0x14;            // uint8 slot
-// const byte op_dec = 0x15;            // uint8 slot
-// const byte op_add = 0x16;            // uint8 slot, uint8 slot
-// const byte op_sub = 0x17;            // uint8 slot, uint8 slot
-// const byte op_mul = 0x18;            // uint8 slot, uint8 slot
-// const byte op_div = 0x19;            // uint8 slot, uint8 slot
-// const byte op_mod = 0x1a;            // uint8 slot, uint8 slot
-// const byte op_copy = 0x1b;           // uint8 dest, uint8 src
-const byte op_iowrite = 0x31;  // uint8 pin, uint8 slot
-const byte op_ioread = 0x32;   // uint8 slot, uint8 pin
-const byte op_iomode = 0x35;   // uint8 pin, uint8 slot
-const byte op_iotype = 0x36;   // uint8 pin, uint8 slot
-const byte op_ioallout = 0x37; // -
+// system instructions
+const byte op_noop = 0x01;
+const byte op_halt = 0x02;
+const byte op_restart = 0x03;
+const byte op_sysinfo = 0x04;
+const byte op_debug = 0x05;
+const byte op_dump = 0x06;
+const byte op_yield = 0x07;
+const byte op_delay = 0x08;
+const byte op_print = 0x09;
+const byte op_jumpto = 0x0a;
+const byte op_jumpif = 0x0b;
+
+// arithmetic operations
+const byte op_gt = 0x20;
+const byte op_gte = 0x21;
+const byte op_lt = 0x22;
+const byte op_lte = 0x23;
+const byte op_equal = 0x24;
+const byte op_notequal = 0x25;
+const byte op_xor = 0x26;
+const byte op_and = 0x27;
+const byte op_or = 0x28;
+const byte op_add = 0x29;
+const byte op_sub = 0x2a;
+const byte op_mul = 0x2b;
+const byte op_div = 0x2c;
+const byte op_mod = 0x2d;
+
+const byte op_not = 0x2e;
+const byte op_inc = 0x2f;
+const byte op_dec = 0x30;
+
+// memory/io instructions
+const byte op_memget = 0x40;
+const byte op_memset = 0x41;
+const byte op_copy = 0x42;
+const byte op_iowrite = 0x43;
+const byte op_ioread = 0x44;
+const byte op_iomode = 0x45;
+const byte op_iotype = 0x46;
+const byte op_ioallout = 0x47;
 // const byte op_wificonnect = 0x3a;    // uint8 pin, uint8 slot
 // const byte op_wifidisconnect = 0x3b; // uint8 pin, uint8 slot
 // const byte op_wifistatus = 0x3c;     // uint8 pin, uint8 slot
@@ -85,8 +86,17 @@ const byte vt_string = 7;
 class Value
 {
 public:
-  byte type;
-  void *value;
+  bool hasValue = false;
+  byte type = 0;
+  void *value = NULL;
+
+  ~Value()
+  {
+    if (hasValue)
+    {
+      os_free(value);
+    }
+  }
 
   uint toInteger()
   {
@@ -153,7 +163,7 @@ public:
   uint endOfTheProgram = 0;
   uint counter = 0;
   uint delayTime = 0;
-  Value slots[256];
+  Value slots[MAX_SLOTS];
   bool paused = false;
   bool debugEnabled = true;
 
@@ -163,15 +173,9 @@ public:
   {
     bytes = _bytes;
     endOfTheProgram = length;
+    counter = 0;
+    paused = false;
     TRACE("Loaded %d bytes\n", length);
-    // if (bytes != 0)
-    // {
-    //   os_free(bytes);
-    // }
-
-    // bytes = (uint8_t *)os_zalloc(length);
-    // bytes = length;
-    // os_memcpy(bytes, program, length);
   }
 
   void tick()
@@ -205,6 +209,10 @@ public:
 
     case op_print:
       print();
+      break;
+
+    case op_dump:
+      dump();
       break;
 
     case op_memget:
@@ -247,6 +255,29 @@ public:
       jumpIf();
       break;
 
+    case op_gt:
+    case op_gte:
+    case op_lt:
+    case op_lte:
+    case op_equal:
+    case op_notequal:
+    case op_xor:
+    case op_and:
+    case op_or:
+    case op_add:
+    case op_sub:
+    case op_mul:
+    case op_div:
+    case op_mod:
+      binaryOperation(next);
+      break;
+
+    case op_not:
+    case op_inc:
+    case op_dec:
+      unaryOperation(next);
+      break;
+
     default:
       TRACE("Invalid operation: %02x\n", next);
       halt();
@@ -255,6 +286,54 @@ public:
     if (counter >= endOfTheProgram)
     {
       halt();
+    }
+  }
+
+  void binaryOperation(byte operation)
+  {
+    auto target = readValue();
+    auto a = readValue();
+    auto b = readValue();
+
+    if (!target.hasValue)
+    {
+      target.value = os_zalloc(sizeof(uint));
+    }
+
+    switch (operation)
+    {
+    case op_add:
+      *((uintref)target.value) = a.toInteger() + b.toInteger();
+      break;
+
+    case op_sub:
+      *((uintref)target.value) = a.toInteger() - b.toInteger();
+      break;
+    }
+  }
+
+  void unaryOperation(byte operation)
+  {
+    auto target = readValue();
+
+    if (!target.hasValue)
+    {
+      target.value = os_zalloc(sizeof(uint));
+    }
+
+    switch (operation)
+    {
+    case op_inc:
+      *((uintref)target.value) = target.toInteger() + 1;
+      break;
+
+    case op_dec:
+      *((uintref)target.value) = target.toInteger() - 1;
+      break;
+
+    case op_not:
+      *((uintref)target.value) = !target.toBoolean();
+      break;
     }
   }
 
@@ -329,32 +408,28 @@ public:
     TRACE("Free %ld bytes\n", system_get_free_heap_size());
   }
 
+  void dump()
+  {
+    uint length = (uint)sizeof(bytes);
+    uint i = 0;
+    os_printf("\nProgram\n");
+    while (i < length)
+    {
+      os_printf("%02x ", bytes[i++]);
+    }
+
+    i = 0;
+    for (; i < MAX_SLOTS; i++)
+    {
+      printValue(slots[i]);
+      TRACE("'\n'");
+    }
+  }
+
   void print()
   {
     auto value = readValue();
-
-    switch (value.type)
-    {
-    case vt_byte:
-      TRACE("%02x", value.toByte());
-      break;
-
-    case vt_pin:
-      TRACE("%d", value.fromPin());
-      break;
-
-    case vt_integer:
-      TRACE("%d", value.toInteger());
-      break;
-
-    case vt_address:
-      TRACE("%p", value.fromAddress());
-      break;
-
-    case vt_string:
-      TRACE("%s", value.toString());
-      break;
-    }
+    printValue(value);
   }
 
   void readFromMemory()
@@ -451,6 +526,32 @@ public:
   }
 
 protected:
+  void printValue(Value value)
+  {
+    switch (value.type)
+    {
+    case vt_byte:
+      TRACE("%02x", value.toByte());
+      break;
+
+    case vt_pin:
+      TRACE("%d", value.fromPin());
+      break;
+
+    case vt_integer:
+      TRACE("%d", value.toInteger());
+      break;
+
+    case vt_address:
+      TRACE("%p", value.fromAddress());
+      break;
+
+    case vt_string:
+      TRACE("%s", value.toString());
+      break;
+    }
+  }
+
   void move(uint32_t amount)
   {
     counter += amount;
