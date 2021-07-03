@@ -16,3 +16,19 @@ ret.n   return value at a2
  *	a10/ tmp
  *	a11/ tmp
  *	a12/ tmp
+
+
+// static uint8_t bytes[] = {
+//     op_debug, vt_byte, 0,
+//     op_iotype, vt_byte, 0, vt_byte, 0,
+//     op_iotype, vt_byte, 2, vt_byte, 0,
+//     op_iomode, vt_byte, 0, vt_byte, 1,
+//     op_iomode, vt_byte, 2, vt_byte, 1,
+//     op_iowrite, vt_byte, 2, vt_byte, 1,
+//     op_iowrite, vt_byte, 0, vt_byte, 1,
+//     op_delay, vt_integer, 0x64, 0x00, 0, 0,
+//     op_iowrite, vt_byte, 2, vt_byte, 0,
+//     op_iowrite, vt_byte, 0, vt_byte, 0,
+//     op_delay, vt_integer, 0xe8, 0x03, 0, 0,
+//     op_jumpto, vt_integer, 0x17, 0, 0, 0};
+
