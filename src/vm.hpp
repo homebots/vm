@@ -30,7 +30,7 @@ const byte op_print = 0x09;
 const byte op_jumpto = 0x0a;
 const byte op_jumpif = 0x0b;
 
-// arithmetic operations
+// operations
 const byte op_gt = 0x20;
 const byte op_gte = 0x21;
 const byte op_lt = 0x22;
@@ -167,14 +167,23 @@ public:
   bool paused = false;
   bool debugEnabled = true;
 
-  Program() {}
-
   void load(byteref _bytes, uint length)
   {
-    bytes = _bytes;
+    if (bytes != NULL && endOfTheProgram < length)
+    {
+      bytes = (string)os_realloc(bytes, length);
+    }
+
+    if (bytes == NULL)
+    {
+      bytes = (string)os_zalloc(length);
+    }
+
+    os_memcpy(bytes, _bytes, length);
     endOfTheProgram = length;
     counter = 0;
     paused = false;
+
     TRACE("Loaded %d bytes\n", length);
   }
 
@@ -295,6 +304,10 @@ public:
     auto a = readValue();
     auto b = readValue();
 
+    auto valueOfA = a.toInteger();
+    auto valueOfB = b.toInteger();
+    uint newValue;
+
     if (!target.hasValue)
     {
       target.value = os_zalloc(sizeof(uint));
@@ -302,14 +315,52 @@ public:
 
     switch (operation)
     {
-    case op_add:
-      *((uintref)target.value) = a.toInteger() + b.toInteger();
-      break;
 
+    case op_gt:
+      newValue = valueOfA > valueOfB;
+      break;
+    case op_gte:
+      newValue = valueOfA >= valueOfB;
+      break;
+    case op_lt:
+      newValue = valueOfA < valueOfB;
+      break;
+    case op_lte:
+      newValue = valueOfA <= valueOfB;
+      break;
+    case op_equal:
+      newValue = valueOfA == valueOfB;
+      break;
+    case op_notequal:
+      newValue = valueOfA != valueOfB;
+      break;
+    case op_xor:
+      newValue = valueOfA ^ valueOfB;
+      break;
+    case op_and:
+      newValue = valueOfA & valueOfB;
+      break;
+    case op_or:
+      newValue = valueOfA | valueOfB;
+      break;
+    case op_add:
+      newValue = valueOfA + valueOfB;
+      break;
     case op_sub:
-      *((uintref)target.value) = a.toInteger() - b.toInteger();
+      newValue = valueOfA - valueOfB;
+      break;
+    case op_mul:
+      newValue = valueOfA * valueOfB;
+      break;
+    case op_div:
+      newValue = valueOfA / valueOfB;
+      break;
+    case op_mod:
+      newValue = valueOfA % valueOfB;
       break;
     }
+
+    *((uintref)target.value) = newValue;
   }
 
   void unaryOperation(byte operation)
@@ -321,20 +372,13 @@ public:
       target.value = os_zalloc(sizeof(uint));
     }
 
-    switch (operation)
+    if (operation == op_not)
     {
-    case op_inc:
-      *((uintref)target.value) = target.toInteger() + 1;
-      break;
-
-    case op_dec:
-      *((uintref)target.value) = target.toInteger() - 1;
-      break;
-
-    case op_not:
       *((uintref)target.value) = !target.toBoolean();
-      break;
+      return;
     }
+
+    *((uintref)target.value) = target.toInteger() + ((operation == op_inc) ? 1 : -1);
   }
 
   void sleep()
@@ -410,20 +454,19 @@ public:
 
   void dump()
   {
-    uint length = (uint)sizeof(bytes);
     uint i = 0;
     os_printf("\nProgram\n");
-    while (i < length)
+    while (i < endOfTheProgram)
     {
       os_printf("%02x ", bytes[i++]);
     }
 
-    i = 0;
-    for (; i < MAX_SLOTS; i++)
-    {
-      printValue(slots[i]);
-      TRACE("'\n'");
-    }
+    // i = 0;
+    // for (; i < MAX_SLOTS; i++)
+    // {
+    //   printValue(slots[i]);
+    //   TRACE("'\n'");
+    // }
   }
 
   void print()
