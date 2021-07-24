@@ -21,7 +21,7 @@ typedef unsigned int *uintref;
 const byte op_noop = 0x01;
 const byte op_halt = 0x02;
 const byte op_restart = 0x03;
-const byte op_sysinfo = 0x04;
+const byte op_systeminfo = 0x04;
 const byte op_debug = 0x05;
 const byte op_dump = 0x06;
 const byte op_yield = 0x07;
@@ -29,6 +29,8 @@ const byte op_delay = 0x08;
 const byte op_print = 0x09;
 const byte op_jumpto = 0x0a;
 const byte op_jumpif = 0x0b;
+const byte op_sleep = 0x0c;
+const byte op_declare = 0x0d;
 
 // operations
 const byte op_gt = 0x20;
@@ -53,27 +55,27 @@ const byte op_dec = 0x30;
 // memory/io instructions
 const byte op_memget = 0x40;
 const byte op_memset = 0x41;
-const byte op_copy = 0x42;
+const byte op_memcopy = 0x42;
 const byte op_iowrite = 0x43;
 const byte op_ioread = 0x44;
 const byte op_iomode = 0x45;
 const byte op_iotype = 0x46;
 const byte op_ioallout = 0x47;
-// const byte op_wificonnect = 0x3a;    // uint8 pin, uint8 slot
-// const byte op_wifidisconnect = 0x3b; // uint8 pin, uint8 slot
-// const byte op_wifistatus = 0x3c;     // uint8 pin, uint8 slot
-// const byte op_wifilist = 0x3e;       // uint8 pin, uint8 slot
-const byte op_sleep = 0x3f; // uint8 mode, uint32 time
-// const byte op_i2setup = 0x40;        // -
-// const byte op_i2start = 0x41;        // -
-// const byte op_i2stop = 0x42;         // -
-// const byte op_i2write = 0x43;        // uint8 byte
-// const byte op_i2read = 0x44;         // uint8 slot
-// const byte op_i2setack = 0x45;       // uint8 byte
-// const byte op_i2getack = 0x46;       // uint8 byte
-// const byte op_i2find = 0x48;         // uint8 slot
-// const byte op_i2writeack = 0x49;     // uint32 length, uint* bytes
-// const byte op_i2writeack_b = 0x4a;   // uint8 byte
+
+// const byte op_wificonnect = 0x3a;
+// const byte op_wifidisconnect = 0x3b;
+// const byte op_wifistatus = 0x3c;
+// const byte op_wifilist = 0x3e;
+// const byte op_i2setup = 0x40;
+// const byte op_i2start = 0x41;
+// const byte op_i2stop = 0x42;
+// const byte op_i2write = 0x43;
+// const byte op_i2read = 0x44;
+// const byte op_i2setack = 0x45;
+// const byte op_i2getack = 0x46;
+// const byte op_i2find = 0x48;
+// const byte op_i2writeack = 0x49;
+// const byte op_i2writeack_b = 0x4a;
 
 const byte vt_identifier = 1;
 const byte vt_byte = 2;
@@ -94,8 +96,13 @@ public:
   {
     if (hasValue)
     {
-      os_free(value);
+      free();
     }
+  }
+
+  void free()
+  {
+    os_free(value);
   }
 
   uint toInteger()
@@ -159,7 +166,7 @@ class Program
 {
 public:
   os_timer_t timer;
-  string bytes = NULL;
+  byteref bytes = NULL;
   uint endOfTheProgram = 0;
   uint counter = 0;
   uint delayTime = 0;
@@ -208,7 +215,7 @@ public:
       toggleDebug();
       break;
 
-    case op_sysinfo:
+    case op_systeminfo:
       systemInformation();
       break;
 
@@ -230,6 +237,10 @@ public:
 
     case op_memset:
       writeToMemory();
+      break;
+
+    case op_memcopy:
+      copyMemory();
       break;
 
     case op_iowrite:
@@ -475,17 +486,30 @@ public:
     printValue(value);
   }
 
+  void declareReference()
+  {
+    auto slotId = readValue().toByte();
+    auto type = readValue().toByte();
+
+    Value value;
+    value.type = type;
+
+    updateSlot(slotId, value);
+  }
+
   void readFromMemory()
   {
-    auto slot = readValue().toByte();
+    auto slotId = readValue().toByte();
     auto address = (void *)readValue().toInteger();
 
     Value newValue;
 
-    // TRACE("memget [%d], %ld\n", slot, address);
-    slots[slot] = newValue;
+    TRACE("memget [%d], %ld\n", slotId, address);
+
     newValue.type = vt_address;
     newValue.value = address;
+
+    updateSlot(slotId, newValue);
   }
 
   void writeToMemory()
@@ -513,6 +537,14 @@ public:
       // case vt_string:
       // break;
     }
+  }
+
+  void copyMemory()
+  {
+    auto source = readValue().toInteger();
+    auto destination = readValue().toInteger();
+
+    WRITE_PERI_REG(destination, READ_PERI_REG(source));
   }
 
   void ioMode()
@@ -658,5 +690,15 @@ protected:
     }
 
     return value;
+  }
+
+  void updateSlot(byte slotId, Value value)
+  {
+    if (slots[slotId].hasValue)
+    {
+      slots[slotId].free();
+    }
+
+    slots[slotId] = value;
   }
 };
