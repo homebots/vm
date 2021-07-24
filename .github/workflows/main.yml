@@ -1,0 +1,16 @@
+name: CI
+on:
+  - push
+  - workflow_dispatch
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    # container:
+    #   image: darlanalves/homebots-sdk
+    #   options: --user root -v ${{ github.workspace }}:/home/espbuilder/project:rw
+    # steps:
+    # - name: Checkout
+    #   uses: actions/checkout@v2
+    # - name: Build firmware
+    # run: ls -al && pwd && mkdir -p build/project firmware && cd /home/espbuilder/ && make all

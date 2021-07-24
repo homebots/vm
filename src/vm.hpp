@@ -51,6 +51,7 @@ const byte op_mod = 0x2d;
 const byte op_not = 0x2e;
 const byte op_inc = 0x2f;
 const byte op_dec = 0x30;
+const byte op_assign = 0x31;
 
 // memory/io instructions
 const byte op_memget = 0x40;
@@ -77,6 +78,7 @@ const byte op_ioallout = 0x47;
 // const byte op_i2writeack = 0x49;
 // const byte op_i2writeack_b = 0x4a;
 
+const byte vt_null = 0;
 const byte vt_identifier = 1;
 const byte vt_byte = 2;
 const byte vt_pin = 3;
@@ -103,6 +105,11 @@ public:
   void free()
   {
     os_free(value);
+  }
+
+  void allocate(uint size)
+  {
+    value = os_zalloc(size);
   }
 
   uint toInteger()
@@ -231,6 +238,10 @@ public:
       dump();
       break;
 
+    case op_declare:
+      declareReference();
+      break;
+
     case op_memget:
       readFromMemory();
       break;
@@ -321,7 +332,7 @@ public:
 
     if (!target.hasValue)
     {
-      target.value = os_zalloc(sizeof(uint));
+      target.allocate(sizeof(uint));
     }
 
     switch (operation)
@@ -380,16 +391,27 @@ public:
 
     if (!target.hasValue)
     {
-      target.value = os_zalloc(sizeof(uint));
+      target.allocate(sizeof(uint));
     }
 
-    if (operation == op_not)
+    if (operation == op_inc || operation == op_dec)
     {
-      *((uintref)target.value) = !target.toBoolean();
+      *((uintref)target.value) = target.toInteger() + ((operation == op_inc) ? 1 : -1);
       return;
     }
 
-    *((uintref)target.value) = target.toInteger() + ((operation == op_inc) ? 1 : -1);
+    auto value = readValue();
+    if (operation == op_not)
+    {
+      *((uintref)target.value) = !value.toBoolean();
+      return;
+    }
+
+    if (operation == op_assign)
+    {
+      *((uintref)target.value) = *((uintref)value.value);
+      return;
+    }
   }
 
   void sleep()
@@ -488,8 +510,10 @@ public:
 
   void declareReference()
   {
-    auto slotId = readValue().toByte();
-    auto type = readValue().toByte();
+    byte slotId = *(readByte());
+    byte type = *(readByte());
+
+    TRACE("declare %d, %d\n", slotId, type);
 
     Value value;
     value.type = type;
@@ -567,7 +591,7 @@ public:
 
   void ioWrite()
   {
-    auto pin = readValue().toByte();
+    auto pin = *(readByte());
     auto value = readValue().toByte();
 
     TRACE("io write %d %d\n", pin, value);
@@ -576,14 +600,17 @@ public:
 
   void ioRead()
   {
-    auto pin = readValue().toByte();
-    auto target = readValue().toByte();
     Value value;
+    auto pin = *(readByte());
+    auto target = readValue().toByte();
+    auto pinValue = (byte)pinRead(pin);
 
     value.type = vt_byte;
-    value.value = &target;
+    value.hasValue = true;
+    value.allocate(1);
+    *((byteref)value.value) = pinValue;
 
-    TRACE("io read %d %d\n", pin, target);
+    TRACE("io read %d, %d\n", pin, target);
     slots[target] = value;
   }
 
