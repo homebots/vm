@@ -498,12 +498,12 @@ public:
       os_printf("%02x ", bytes[i++]);
     }
 
-    // i = 0;
-    // for (; i < MAX_SLOTS; i++)
-    // {
-    //   printValue(slots[i]);
-    //   TRACE("'\n'");
-    // }
+    i = 0;
+    for (; i < MAX_SLOTS; i++)
+    {
+      printValue(slots[i]);
+      TRACE("'\n'");
+    }
   }
 
   void print()
