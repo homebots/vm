@@ -1,7 +1,9 @@
-#include "sdk/sdk.h"
+#include "sdk.h"
 
 #define MAX_DELAY 6871000
 #define MAX_SLOTS 256
+#define MAJOR 1
+#define MINOR 0
 
 typedef unsigned char *string;
 
@@ -24,7 +26,7 @@ const byte op_restart = 0x03;
 const byte op_systeminfo = 0x04;
 const byte op_debug = 0x05;
 const byte op_dump = 0x06;
-const byte op_yield = 0x07;
+
 const byte op_delay = 0x08;
 const byte op_print = 0x09;
 const byte op_jumpto = 0x0a;
@@ -32,7 +34,7 @@ const byte op_jumpif = 0x0b;
 const byte op_sleep = 0x0c;
 const byte op_declare = 0x0d;
 
-// operations
+// binary operations
 const byte op_gt = 0x20;
 const byte op_gte = 0x21;
 const byte op_lt = 0x22;
@@ -48,15 +50,17 @@ const byte op_mul = 0x2b;
 const byte op_div = 0x2c;
 const byte op_mod = 0x2d;
 
+// unary operations
 const byte op_not = 0x2e;
 const byte op_inc = 0x2f;
 const byte op_dec = 0x30;
+
 const byte op_assign = 0x31;
 
 // memory/io instructions
 const byte op_memget = 0x40;
 const byte op_memset = 0x41;
-const byte op_memcopy = 0x42;
+// const byte op_memcopy = 0x42;
 const byte op_iowrite = 0x43;
 const byte op_ioread = 0x44;
 const byte op_iomode = 0x45;
@@ -89,6 +93,8 @@ const byte vt_string = 7;
 
 class Value
 {
+  int size = 0;
+
 public:
   bool hasValue = false;
   byte type = 0;
@@ -96,20 +102,28 @@ public:
 
   ~Value()
   {
-    if (hasValue)
-    {
-      free();
-    }
+    free();
   }
 
   void free()
   {
-    os_free(value);
+    if (hasValue)
+    {
+      os_free(value);
+      hasValue = false;
+    }
   }
 
-  void allocate(uint size)
+  void allocate(uint bytes)
   {
-    value = os_zalloc(size);
+    if (hasValue && bytes == this->size)
+    {
+      return;
+    }
+
+    free();
+    value = os_zalloc(bytes);
+    hasValue = true;
   }
 
   uint toInteger()
@@ -250,10 +264,6 @@ public:
       writeToMemory();
       break;
 
-    case op_memcopy:
-      copyMemory();
-      break;
-
     case op_iowrite:
       ioWrite();
       break;
@@ -304,6 +314,9 @@ public:
       break;
 
     case op_not:
+      notOperator();
+      break;
+
     case op_inc:
     case op_dec:
       unaryOperation(next);
@@ -322,18 +335,13 @@ public:
 
   void binaryOperation(byte operation)
   {
-    auto target = readValue();
+    auto target = getSlot(readValue());
     auto a = readValue();
     auto b = readValue();
 
     auto valueOfA = a.toInteger();
     auto valueOfB = b.toInteger();
     uint newValue;
-
-    if (!target.hasValue)
-    {
-      target.allocate(sizeof(uint));
-    }
 
     switch (operation)
     {
@@ -382,42 +390,38 @@ public:
       break;
     }
 
+    target.allocate(sizeof(uint));
     *((uintref)target.value) = newValue;
   }
 
   void unaryOperation(byte operation)
   {
+    auto target = getSlot(readValue());
+    auto newValue = target.toInteger() + ((operation == op_inc) ? 1 : -1);
+
+    target.allocate(sizeof(uint));
+    *((uintref)target.value) = newValue;
+  }
+
+  void assignOperator()
+  {
     auto target = readValue();
-
-    if (!target.hasValue)
-    {
-      target.allocate(sizeof(uint));
-    }
-
-    if (operation == op_inc || operation == op_dec)
-    {
-      *((uintref)target.value) = target.toInteger() + ((operation == op_inc) ? 1 : -1);
-      return;
-    }
-
     auto value = readValue();
-    if (operation == op_not)
-    {
-      *((uintref)target.value) = !value.toBoolean();
-      return;
-    }
+    updateSlot(target.toByte(), value);
+  }
 
-    if (operation == op_assign)
-    {
-      *((uintref)target.value) = *((uintref)value.value);
-      return;
-    }
+  void notOperator()
+  {
+    auto target = getSlot(readValue());
+    auto value = !readValue().toBoolean();
+
+    target.allocate(1);
+    *((uintref)target.value) = value;
   }
 
   void sleep()
   {
-    auto value = readValue();
-    auto time = value.toInteger();
+    auto time = readValue().toInteger();
 
     TRACE("sleep %ld\n", time);
     system_deep_sleep_set_option(2);
@@ -533,6 +537,18 @@ public:
     newValue.type = vt_address;
     newValue.value = address;
 
+    // if (1)
+    // {
+    //   if (address < 0x3ff00000 || address >= 0x60010000)
+    //   {
+    //     return;
+    //   }
+
+    //   uint32_t val_aligned = *(uint32_t *)(addr & (~3));
+    //   uint32_t shift = (addr & 3) * 8;
+    //   return (val_aligned >> shift) & 0xff;
+    // }
+
     updateSlot(slotId, newValue);
   }
 
@@ -541,7 +557,7 @@ public:
     auto address = readValue().toInteger();
     auto value = readValue();
 
-    // TRACE("memset [%d], %ld\n", slot, address);
+    TRACE("memset %ld = [%d]\n", slot, address);
 
     switch (value.type)
     {
@@ -557,18 +573,10 @@ public:
       WRITE_PERI_REG(address, value.toInteger());
       break;
 
-      // case vt_address:
-      // case vt_string:
-      // break;
+    case vt_address:
+      WRITE_PERI_REG(address, READ_PERI_REG(value.toInteger()));
+      break;
     }
-  }
-
-  void copyMemory()
-  {
-    auto source = readValue().toInteger();
-    auto destination = readValue().toInteger();
-
-    WRITE_PERI_REG(destination, READ_PERI_REG(source));
   }
 
   void ioMode()
@@ -591,8 +599,8 @@ public:
 
   void ioWrite()
   {
-    auto pin = *(readByte());
-    auto value = readValue().toByte();
+    auto pin = readValue().toByte();
+    auto value = readValue().toBoolean();
 
     TRACE("io write %d %d\n", pin, value);
     pinWrite(pin, (bool)value);
@@ -600,18 +608,14 @@ public:
 
   void ioRead()
   {
-    Value value;
-    auto pin = *(readByte());
-    auto target = readValue().toByte();
+    auto target = readValue();
+    auto pin = readValue().toByte();
     auto pinValue = (byte)pinRead(pin);
 
-    value.type = vt_byte;
-    value.hasValue = true;
-    value.allocate(1);
-    *((byteref)value.value) = pinValue;
+    target.allocate(1);
+    *((byteref)target.value) = pinValue;
 
-    TRACE("io read %d, %d\n", pin, target);
-    slots[target] = value;
+    TRACE("io read %d\n", pin);
   }
 
   void ioAllOut()
@@ -687,8 +691,7 @@ protected:
 
   Value readValue()
   {
-    byteref typeRef = readByte();
-    byte type = *typeRef;
+    byte type = *(readByte());
     Value value;
 
     value.type = type;
@@ -711,21 +714,19 @@ protected:
       break;
     }
 
-    if (type == vt_identifier)
-    {
-      value = slots[value.toByte()];
-    }
-
     return value;
+  }
+
+  Value getSlot(Value value)
+  {
+    return slots[value.toByte()];
   }
 
   void updateSlot(byte slotId, Value value)
   {
-    if (slots[slotId].hasValue)
-    {
-      slots[slotId].free();
-    }
+    slots[slotId].free();
 
+    // TODO is memcopy better?
     slots[slotId] = value;
   }
 };
