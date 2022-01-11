@@ -1,4 +1,4 @@
-// #define WITH_DEBUG
+#define WITH_DEBUG
 #define SERIAL_SPEED 115200
 
 #include "homebots.h"

@@ -170,7 +170,7 @@ public:
     switch (type)
     {
     case vt_byte:
-    case vt_identifier:
+    case vt_identifier: // TODO unwrap value of identifier
       return toByte() != 0;
 
     case vt_integer:
@@ -320,13 +320,17 @@ public:
       binaryOperation(next);
       break;
 
-    case op_not:
-      notOperator();
-      break;
-
     case op_inc:
     case op_dec:
       unaryOperation(next);
+      break;
+
+    case op_not:
+      notOperation();
+      break;
+
+    case op_assign:
+      assignOperation();
       break;
 
     default:
@@ -410,7 +414,7 @@ public:
     TRACE("Unary %d: $%d = %d\n", operation, target.toByte(), newValue);
   }
 
-  void notOperator()
+  void notOperation()
   {
     auto target = readValue();
     auto value = !readValue().toBoolean();
@@ -419,7 +423,7 @@ public:
     TRACE("Not %d: %d\n", target.toByte(), value);
   }
 
-  void assignOperator()
+  void assignOperation()
   {
     auto target = readValue();
     auto value = readValue();
@@ -527,9 +531,7 @@ public:
 
     slots[slotId].update(value);
 
-    TRACE("declare %d, %d: ", slotId, slots[slotId].getType());
-    printValue(slots[slotId]);
-    TRACE("\n");
+    TRACE("declare %d, %d\n", slotId, slots[slotId].getType());
   }
 
   void readFromMemory()
@@ -559,8 +561,7 @@ public:
     auto address = readValue().toInteger();
     auto value = readValue();
 
-    TRACE("memset %ld:\n", address);
-    printValue(value);
+    TRACE("memset %ld\n", address);
 
     switch (value.getType())
     {
@@ -637,8 +638,10 @@ protected:
   {
     switch (value.getType())
     {
-    case vt_byte:
     case vt_identifier:
+      printValue(slots[value.toByte()]);
+      break;
+    case vt_byte:
       os_printf("%02x", value.toByte());
       break;
 
