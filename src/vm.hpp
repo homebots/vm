@@ -13,7 +13,7 @@ typedef unsigned char *byteref;
 typedef unsigned int uint;
 typedef unsigned int *uintref;
 
-#ifdef DEBUG
+#ifdef WITH_DEBUG
 #define TRACE(...) os_printf(__VA_ARGS__);
 #else
 #define TRACE(...)
@@ -93,37 +93,43 @@ const byte vt_string = 7;
 
 class Value
 {
-  int size = 0;
-
-public:
+protected:
   bool hasValue = false;
   byte type = 0;
   void *value = NULL;
 
-  ~Value()
-  {
-    free();
-  }
-
-  void free()
+  void freeValue()
   {
     if (hasValue)
     {
+      TRACE("free %d\n", value);
       os_free(value);
-      hasValue = false;
+      value = NULL;
     }
   }
 
-  void allocate(uint bytes)
+public:
+  void update(Value value)
   {
-    if (hasValue && bytes == this->size)
-    {
-      return;
-    }
+    update(value.type, value.value, value.hasValue);
+  }
 
-    free();
-    value = os_zalloc(bytes);
-    hasValue = true;
+  void update(byte newType, void *newValue)
+  {
+    update(newType, newValue, false);
+  }
+
+  void update(byte newType, void *newValue, bool hasValue)
+  {
+    freeValue();
+    type = newType;
+    value = newValue;
+    this->hasValue = hasValue;
+  }
+
+  byte getType()
+  {
+    return type;
   }
 
   uint toInteger()
@@ -164,13 +170,14 @@ public:
     switch (type)
     {
     case vt_byte:
+    case vt_identifier:
       return toByte() != 0;
 
     case vt_integer:
       return toInteger() != 0;
 
     case vt_string:
-      return toString() != 0;
+      return strlen((const char *)toString()) != 0;
 
     case vt_pin:
       return fromPin() != 0;
@@ -335,7 +342,7 @@ public:
 
   void binaryOperation(byte operation)
   {
-    auto target = getSlot(readValue());
+    auto target = readValue();
     auto a = readValue();
     auto b = readValue();
 
@@ -390,33 +397,34 @@ public:
       break;
     }
 
-    target.allocate(sizeof(uint));
-    *((uintref)target.value) = newValue;
+    updateSlotWithInteger(target.toByte(), newValue);
+    TRACE("Binary %d: $%d = %d\n", operation, target.toByte(), newValue);
   }
 
   void unaryOperation(byte operation)
   {
-    auto target = getSlot(readValue());
+    auto target = readValue();
     auto newValue = target.toInteger() + ((operation == op_inc) ? 1 : -1);
 
-    target.allocate(sizeof(uint));
-    *((uintref)target.value) = newValue;
+    updateSlotWithInteger(target.toByte(), newValue);
+    TRACE("Unary %d: $%d = %d\n", operation, target.toByte(), newValue);
+  }
+
+  void notOperator()
+  {
+    auto target = readValue();
+    auto value = !readValue().toBoolean();
+
+    updateSlotWithInteger(target.toByte(), (uint)value);
+    TRACE("Not %d: %d\n", target.toByte(), value);
   }
 
   void assignOperator()
   {
     auto target = readValue();
     auto value = readValue();
-    updateSlot(target.toByte(), value);
-  }
 
-  void notOperator()
-  {
-    auto target = getSlot(readValue());
-    auto value = !readValue().toBoolean();
-
-    target.allocate(1);
-    *((uintref)target.value) = value;
+    slots[target.toByte()].update(value);
   }
 
   void sleep()
@@ -462,7 +470,7 @@ public:
       return;
 
     counter = position.toInteger();
-    TRACE("jump if [%d], %d\n", condition.type, counter);
+    TRACE("jump if: %d\n", counter);
   }
 
   void toggleDebug()
@@ -515,14 +523,13 @@ public:
   void declareReference()
   {
     byte slotId = *(readByte());
-    byte type = *(readByte());
+    auto value = readValue();
 
-    TRACE("declare %d, %d\n", slotId, type);
+    slots[slotId].update(value);
 
-    Value value;
-    value.type = type;
-
-    updateSlot(slotId, value);
+    TRACE("declare %d, %d: ", slotId, slots[slotId].getType());
+    printValue(slots[slotId]);
+    TRACE("\n");
   }
 
   void readFromMemory()
@@ -530,12 +537,7 @@ public:
     auto slotId = readValue().toByte();
     auto address = (void *)readValue().toInteger();
 
-    Value newValue;
-
     TRACE("memget [%d], %ld\n", slotId, address);
-
-    newValue.type = vt_address;
-    newValue.value = address;
 
     // if (1)
     // {
@@ -549,7 +551,7 @@ public:
     //   return (val_aligned >> shift) & 0xff;
     // }
 
-    updateSlot(slotId, newValue);
+    slots[slotId].update(vt_address, address);
   }
 
   void writeToMemory()
@@ -557,9 +559,10 @@ public:
     auto address = readValue().toInteger();
     auto value = readValue();
 
-    TRACE("memset %ld = [%d]\n", slot, address);
+    TRACE("memset %ld:\n", address);
+    printValue(value);
 
-    switch (value.type)
+    switch (value.getType())
     {
     case vt_byte:
       WRITE_PERI_REG(address, value.toByte());
@@ -581,7 +584,7 @@ public:
 
   void ioMode()
   {
-    auto pin = readValue().toByte();
+    auto pin = *(readByte());
     auto value = readValue().toByte();
 
     TRACE("io mode %d %d\n", pin, value);
@@ -590,7 +593,7 @@ public:
 
   void ioType()
   {
-    auto pin = readValue().toByte();
+    auto pin = *(readByte());
     auto value = readValue().toByte();
 
     TRACE("io type %d %d\n", pin, value);
@@ -599,7 +602,7 @@ public:
 
   void ioWrite()
   {
-    auto pin = readValue().toByte();
+    auto pin = *(readByte());
     auto value = readValue().toBoolean();
 
     TRACE("io write %d %d\n", pin, value);
@@ -609,13 +612,11 @@ public:
   void ioRead()
   {
     auto target = readValue();
-    auto pin = readValue().toByte();
+    auto pin = *(readByte());
     auto pinValue = (byte)pinRead(pin);
 
-    target.allocate(1);
-    *((byteref)target.value) = pinValue;
-
-    TRACE("io read %d\n", pin);
+    updateSlotWithInteger(target.toByte(), (uint)pinValue);
+    TRACE("io read %d, %d\n", pin, pinValue);
   }
 
   void ioAllOut()
@@ -634,26 +635,27 @@ public:
 protected:
   void printValue(Value value)
   {
-    switch (value.type)
+    switch (value.getType())
     {
     case vt_byte:
-      TRACE("%02x", value.toByte());
+    case vt_identifier:
+      os_printf("%02x", value.toByte());
       break;
 
     case vt_pin:
-      TRACE("%d", value.fromPin());
+      os_printf("%d", value.fromPin());
       break;
 
     case vt_integer:
-      TRACE("%d", value.toInteger());
+      os_printf("%d", value.toInteger());
       break;
 
     case vt_address:
-      TRACE("%p", value.fromAddress());
+      os_printf("%p", value.fromAddress());
       break;
 
     case vt_string:
-      TRACE("%s", value.toString());
+      os_printf("%s", value.toString());
       break;
     }
   }
@@ -694,39 +696,33 @@ protected:
     byte type = *(readByte());
     Value value;
 
-    value.type = type;
-
     switch (type)
     {
     case vt_byte:
     case vt_pin:
     case vt_identifier:
-      value.value = (void *)readByte();
+      value.update(type, (void *)readByte());
       break;
 
     case vt_integer:
     case vt_address:
-      value.value = (void *)readNumber();
+      value.update(type, (void *)readNumber());
       break;
 
     case vt_string:
-      value.value = (void *)readString();
+      value.update(type, (void *)readString());
       break;
     }
 
     return value;
   }
 
-  Value getSlot(Value value)
+  void updateSlotWithInteger(byte slotId, uint value)
   {
-    return slots[value.toByte()];
-  }
+    auto type = slots[slotId].getType();
+    auto valueRef = os_zalloc(sizeof(uint));
+    *((uintref)valueRef) = value;
 
-  void updateSlot(byte slotId, Value value)
-  {
-    slots[slotId].free();
-
-    // TODO is memcopy better?
-    slots[slotId] = value;
+    slots[slotId].update(type, valueRef, true);
   }
 };
