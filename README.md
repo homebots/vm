@@ -4,14 +4,14 @@ Virtual Machine to execute programs on an esp8266 without the need to flash a ne
 
 ## Build and flash
 
-### From prebuilt binaries
+**From prebuilt binaries:**
 
 See [releases](https://github.com/homebots/vm/releases).
 
-#### From source
+**From source:**
 
 ```bash
-$ make && make flash
+make && make flash
 ```
 
 See [`Makefile`](Makefile) for more options.
@@ -20,32 +20,38 @@ See [`Makefile`](Makefile) for more options.
 
 - every instruction has a unique opcode and is 1-byte long
 - every instruction can have zero or more operands
-- operands are of type `byte`, `integer`, `unsigned integer`, or `string`.
-  `byte` is also used to represent IO pins or a memory slot. Valid pins are `0`, `1`, `2` or `3`.
-  `integer` is also used to represent memory addresses.
+- each operand can be of type `Byte`, `Number`, `Integer`, `String` or `Null`.
+  `byte` is also used to represent IO pins or a memory slot.
+  Valid pins are `0`, `1`, `2` or `3`.
+  A type `Integer` is also used to represent memory addresses.
+- values are encoded as a byte for their type, followed by their content.
+An operator that accepts any type declares its operands as `Value`, to represent any value.
 
-- types are encoded as a `Value` type, with these data types:
+These are the valid *data* types:
 
-| type           | encoding: type + data      | length         |
-| -------------- | -------------------------- | -------------- |
-| null           | `0x00`                     | 1              |
-| identifier     | `0x01 byte`                | 2              |
-| byte           | `0x02 byte`                | 2              |
-| pin            | `0x03 0x00-0x03`           | 2              |
-| address        | `0x04 byte byte byte byte` | 5              |
-| integer        | `0x05 byte byte byte byte` | 5              |
-| signed integer | `0x06 byte byte byte byte` | 5              |
-| string         | `0x07 bytes ... 0x00`      | str length + 2 |
+| type             | encoding: type and data    | length         | Pseudocode   |
+| ---------------- | -------------------------- | -------------- | ------------ |
+| null             | `0x00`                     | 1              | `Null`       |
+| identifier       | `0x01 byte`                | 2              | `Byte`       |
+| byte             | `0x02 byte`                | 2              | `Byte`       |
+| pin              | `0x03 0x00-0x03`           | 2              | `Byte`       |
+| address          | `0x04 byte byte byte byte` | 5              | `Integer`    |
+| unsigned integer | `0x05 byte byte byte byte` | 5              | `Integer`    |
+| signed integer   | `0x06 byte byte byte byte` | 5              | `Number`     |
+| string           | `0x07 bytes ... 0x00`      | str length + 2 | `String`     |
 
-- multi-byte numbers, like integers and addresses, are LE encoded. That means the bytes are flipped.
+
+- multi-byte numbers, like integers and addresses, are LE encoded. That means the bytes are in reverse order.
   For example, `1000` decimal is encoded as `e8 03 00 00`.
 - String is encoded as a sequence of bytes. The last byte is always a null byte (`0x00`).
 
 ## Instructions
 
-Note: `Value(type)` represents a sequence of bytes representing the data defined as `type`, followed by the data bytes of that type.
+Each data type is represented a sequence of bytes. They always begin with  `type`, followed by the bytes of that type.
 
-For example, an unsigned integer with value 1 corresponds to bytes `0x05 0x01 0x00 0x00 0x00` and is declared as `Value(int) inputName`
+For example, an unsigned integer with value 1 corresponds to bytes `0x05 0x01 0x00 0x00 0x00` and is declared as `Integer inputName`.
+
+Additionally, to make a reference to memory slots, the type `Identifier` is used as an operand.
 
 | op code    | encoding                                | equivalent pseudocode      | description                                                                                     |
 | ---------- | --------------------------------------- | -------------------------- | ----------------------------------------------------------------------------------------------- |
@@ -53,53 +59,53 @@ For example, an unsigned integer with value 1 corresponds to bytes `0x05 0x01 0x
 | halt       | `0x02`                                  | halt()                     | stop program                                                                                    |
 | restart    | `0x03`                                  | restart()                  | restart program                                                                                 |
 | systeminfo | `0x04`                                  | systemInfo()               | print system details to serial output (chip ID, SDK version, local time and memory information) |
-| debug      | `0x05 Value(bool)`                      | debug(enabled)             | swap UART 0 with UART 1 if `false`, swap back to UART 0 if `true`, for serial output            |
+| debug      | `0x05 Byte`                             | debug(enabled)             | swap UART 0 with UART 1 if `false`, swap back to UART 0 if `true`, for serial output            |
 | dump       | `0x06`                                  | dump()                     | print all bytes of the program running                                                          |
-| delay      | `0x08 Value(int)`                       | delay(interval)            | delay the execution of the next instruction. time in milliseconds                               |
-| print      | `0x09 Value(*)`                         | print(value)               | prints any value to the serial output                                                           |
-| jumpto     | `0x0a Value(int)`                       | jumpTo(address)            | jump to any address of the current program                                                      |
-| jumpif     | `0x0b Value(*) Value(int)`              | jumpIf(condition, address) | jump to any address of the current program if condition is truthy                               |
-| sleep      | `0x0c Value(int)`                       | sleep(time)                | put the esp8266 into deep sleep mode for a given time in milliseconds                           |
-| declare    | `0x0d byte byte`                        | declare(slotId, type)      | declare the type of a memory slot                                                               |
-| assign     | `0x31 Value(identifier) Value(*)`       | assign(target, value)      | assign a new value to a memory slot                                                             |
-| memget     | `0x40 Value(identifier) Value(address)` | memoryGet(target, address) | read a value from memory into a slot                                                            |
-| memset     | `0x41 Value(address) Value(*)`          | memorySet(address, value)  | write any value to a memory address                                                             |
-| iowrite    | `0x43 Value(byte) Value(*)`             | ioWrite(pin, value)        | write any value to pin. Any non-zero value writes `1`, otherwise `0`                            |
-| ioread     | `0x44 Value(identifier) Value(byte)`    | ioRead(target, pin)        | read any pin into a target slot.                                                                |
-| iomode     | `0x45 Value(byte) Value(byte)`          | ioWrite(pin, mode)         | set pin mode. Refer to modes table below                                                        |
-| iotype     | `0x46 Value(byte) Value(byte)`          | ioWrite(pin, type)         | set pin type. Refer to types table below                                                        |
+| delay      | `0x08 Integer`                          | delay(interval)            | delay the execution of the next instruction. time in milliseconds                               |
+| print      | `0x09 Value`                            | print(value)               | prints any value to the serial output                                                           |
+| jumpto     | `0x0a Integer`                          | jumpTo(address)            | jump to any address of the current program                                                      |
+| jumpif     | `0x0b Value Integer`                    | jumpIf(condition, address) | jump to any address of the current program if condition is truthy                               |
+| sleep      | `0x0c Integer`                          | sleep(time)                | put the esp8266 into deep sleep mode for a given time in milliseconds                           |
+| declare    | `0x0d Byte Byte`                        | declare(slotId, type)      | declare the type of a memory slot                                                               |
+| assign     | `0x31 Identifier Value`                 | assign(target, value)      | assign a new value to a memory slot                                                             |
+| memget     | `0x40 Identifier Address`               | memoryGet(target, address) | read a value from memory into a slot                                                            |
+| memset     | `0x41 Address Value`                    | memorySet(address, value)  | write any value to a memory address                                                             |
+| iowrite    | `0x43 Byte Value`                       | ioWrite(pin, value)        | write any value to pin. Any non-zero value writes `1`, otherwise `0`                            |
+| ioread     | `0x44 Identifier Byte`                  | ioRead(target, pin)        | read any pin into a target slot.                                                                |
+| iomode     | `0x45 Byte Byte`                        | ioMode(pin, mode)          | set pin mode. Refer to modes table below                                                        |
+| iotype     | `0x46 Byte Byte`                        | ioType(pin, type)          | set pin type. Refer to types table below                                                        |
 | ioallout   | `0x47`                                  | ioAllOut()                 | set all pins to output mode.                                                                    |
 
 ## Arithmetic instructions
 
 **Binary operations**
 
-| op code  | encoding                                   | equivalent pseudocode |
-| -------- | ------------------------------------------ | --------------------- |
-| gt       | `0x20 Value(identifier) Value(*) Value(*)` | a = b > 2             |
-| gte      | `0x21 Value(identifier) Value(*) Value(*)` | a = b >= 2            |
-| lt       | `0x22 Value(identifier) Value(*) Value(*)` | a = b < 2             |
-| lte      | `0x23 Value(identifier) Value(*) Value(*)` | a = b <= 2            |
-| equal    | `0x24 Value(identifier) Value(*) Value(*)` | a = b == 2            |
-| notequal | `0x25 Value(identifier) Value(*) Value(*)` | a = b != 2            |
-| xor      | `0x26 Value(identifier) Value(*) Value(*)` | a = b ^ 2             |
-| and      | `0x27 Value(identifier) Value(*) Value(*)` | a = b & 2             |
-| or       | `0x28 Value(identifier) Value(*) Value(*)` | a = b \| 2            |
-| add      | `0x29 Value(identifier) Value(*) Value(*)` | a = b + 2             |
-| sub      | `0x2a Value(identifier) Value(*) Value(*)` | a = b - 2             |
-| mul      | `0x2b Value(identifier) Value(*) Value(*)` | a = b \* 2            |
-| div      | `0x2c Value(identifier) Value(*) Value(*)` | a = b / 2             |
-| mod      | `0x2d Value(identifier) Value(*) Value(*)` | a = b % 2             |
+| op code  | encoding                      | equivalent pseudocode |
+| -------- | ----------------------------- | --------------------- |
+| gt       | `0x20 Identifier Value Value` | a = b > 2             |
+| gte      | `0x21 Identifier Value Value` | a = b >= 2            |
+| lt       | `0x22 Identifier Value Value` | a = b < 2             |
+| lte      | `0x23 Identifier Value Value` | a = b <= 2            |
+| equal    | `0x24 Identifier Value Value` | a = b == 2            |
+| notequal | `0x25 Identifier Value Value` | a = b != 2            |
+| xor      | `0x26 Identifier Value Value` | a = b ^ 2             |
+| and      | `0x27 Identifier Value Value` | a = b & 2             |
+| or       | `0x28 Identifier Value Value` | a = b \| 2            |
+| add      | `0x29 Identifier Value Value` | a = b + 2             |
+| sub      | `0x2a Identifier Value Value` | a = b - 2             |
+| mul      | `0x2b Identifier Value Value` | a = b \* 2            |
+| div      | `0x2c Identifier Value Value` | a = b / 2             |
+| mod      | `0x2d Identifier Value Value` | a = b % 2             |
 
 **Unary operations**
 
 | op code | encoding                          | equivalent pseudocode |
 | ------- | --------------------------------- | --------------------- |
-| not     | `0x2e Value(identifier) Value(*)` | a = !b                |
-| inc     | `0x2f Value(identifier)`          | a++                   |
-| dec     | `0x30 Value(identifier)`          | a--                   |
+| not     | `0x2e Identifier Value` | a = !b                |
+| inc     | `0x2f Identifier`          | a++                   |
+| dec     | `0x30 Identifier`          | a--                   |
 
-## Pin modes and types
+## Pin modes
 
 | pin mode | description                          |
 | -------- | ------------------------------------ |
@@ -107,6 +113,10 @@ For example, an unsigned integer with value 1 corresponds to bytes `0x05 0x01 0x
 | 1        | output                               |
 | 2        | open drain (floating pin)            |
 | 3        | input with internal pull-up resistor |
+
+## Pin types
+
+There are specific functions that can be associated with IO pins.
 
 | pin | type       |
 | --- | ---------- |
@@ -125,7 +135,7 @@ A program is just a sequence of bytes, representing both instructions and data.
 
 To store data locally as variables, a program can create up to 255 memory slots.
 
-Each slot is represented as a `Value` object.
+Each slot is represented as a `Value`.
 
 Example:
 
@@ -140,7 +150,7 @@ Example:
 
 // jump to the beginning of the program
 // jump = 0x0a
-// Value(int) 1 = 0x05 0x00 0x00 0x00 0x01
+// Integer 1 = 0x05 0x00 0x00 0x00 0x01
 
 0x0a, 0x05, 0x00, 0x00, 0x00, 0x00,
 ```

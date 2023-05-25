@@ -526,8 +526,8 @@ public:
 
   void declareReference()
   {
-    byte slotId = *(readByte());
-    auto value = readValue();
+    auto slotId = readValue().toByte();
+    auto value = readValue().toByte();
 
     slots[slotId].update(value);
 
