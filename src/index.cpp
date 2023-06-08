@@ -3,71 +3,129 @@
 
 #include "homebots.h"
 #include "vm.hpp"
-#include "espconn.h"
 
-static ws_info webSocket;
+// WIFI_SSID and WIFI_SSID should be defined as environment variables
+#ifndef WIFI_SSID
+#define WIFI_SSID "HomeBots"
+#define WIFI_PASSWORD ""
+#endif
+
 static Program program;
-static Wifi wifi;
-static os_timer_t webSocketCheck;
-espconn server;
+static os_timer_t wifiTimer;
 
-static uint8_t blinky[] = {0xd, 0x0, 0x2, 0x1, 0xd, 0x1, 0x2, 0x0, 0xd, 0x2, 0x2, 0x0, 0x8, 0x5, 0x88, 0x13, 0x0, 0x0, 0x9, 0x7, 0x62, 0x6c, 0x69, 0x6e, 0x6b, 0x79, 0x20, 0x6f, 0x6e, 0x20, 0x70, 0x69, 0x6e, 0x20, 0x30, 0x0, 0x9, 0x7, 0x73, 0x65, 0x74, 0x20, 0x70, 0x69, 0x6e, 0x20, 0x30, 0x20, 0x74, 0x6f, 0x20, 0x0, 0x9, 0x1, 0x2, 0x9, 0x7, 0xa, 0x0, 0x43, 0x0, 0x1, 0x2, 0x8, 0x5, 0xe8, 0x3, 0x0, 0x0, 0x31, 0x1, 0x2, 0x1, 0x0, 0x9, 0x7, 0x73, 0x65, 0x74, 0x20, 0x70, 0x69, 0x6e, 0x20, 0x30, 0x20, 0x74, 0x6f, 0x20, 0x0, 0x9, 0x1, 0x2, 0x9, 0x7, 0xa, 0x0, 0x43, 0x0, 0x1, 0x2, 0x8, 0x5, 0xe8, 0x3, 0x0, 0x0, 0x31, 0x1, 0x2, 0x1, 0x1, 0xa, 0x4, 0x25, 0x0, 0x0, 0x0};
-
-bool ICACHE_FLASH_ATTR ws_isConnected(ws_info *webSocket)
+void checkAgain()
 {
-  return webSocket->connectionState != CS_CONNECTED && webSocket->connectionState != CS_CONNECTING;
+  os_timer_arm(&wifiTimer, 5000, 0);
 }
 
-void ICACHE_FLASH_ATTR onReceive(struct ws_info *wsInfo, int length, char *message, int opCode)
+void checkConnection(void *arg)
 {
-  if (length && opCode == WS_OPCODE_BINARY || opCode == WS_OPCODE_TEXT)
-  {
-    program.load((uint8_t *)message, length);
-    os_timer_arm(&program.timer, 10, 0);
-  }
-}
-
-void ICACHE_FLASH_ATTR tick()
-{
-  if (program.paused)
-  {
-    return;
-  }
-
-  while (!program.delayTime && !program.paused)
-  {
-    program.tick();
-  }
-
-  os_timer_arm(&program.timer, program.delayTime, 0);
-  program.delayTime = 0;
-}
-
-void reconnectWebSocket()
-{
+  espconn *conn = (espconn *)arg;
   if (!wifi.isConnected())
   {
+    TRACE("wifi off\n");
+    if (ESPCONN_CLOSE != conn->state)
+    {
+      espconn_disconnect(conn);
+    }
+
+    checkAgain();
     return;
   }
 
-  if (ws_isConnected(&webSocket))
+  if (conn->state != ESPCONN_LISTEN)
   {
-    ws_close(&webSocket);
-    ws_connect(&webSocket, "ws://hub.homebots.io/hub/homebots");
+    TRACE("not started: %d\n", conn->state);
+    espconn_accept(conn);
+    checkAgain();
     return;
+  }
+
+  switch (conn->state)
+  {
+  case ESPCONN_NONE:
+    TRACE("Not started\n");
+    break;
+
+  case ESPCONN_WAIT:
+    TRACE("Waiting\n");
+    break;
+
+  case ESPCONN_LISTEN:
+    TRACE("Listening on %d\n", conn->proto.tcp->local_port);
+    break;
+
+  case ESPCONN_CONNECT:
+    TRACE("Connecting\n");
+    break;
+
+  case ESPCONN_CLOSE:
+    TRACE("Closed\n");
+    break;
+
+  case ESPCONN_WRITE:
+  case ESPCONN_READ:
+    TRACE("Buffered\n");
+    break;
+  }
+
+  if (conn->state != ESPCONN_LISTEN)
+  {
+    checkAgain();
   }
 }
 
-void ICACHE_FLASH_ATTR setup()
+void onReceive(void *arg, char *pdata, unsigned short len)
 {
-  webSocket.onReceive = onReceive;
-  os_timer_setfn(&webSocketCheck, (os_timer_func_t *)reconnectWebSocket, NULL);
-  os_timer_arm(&webSocketCheck, 3000, 1);
+  TRACE("Received %d bytes\n", len);
+  program_load(&program, (unsigned char *)pdata, (uint)len);
 
-  os_timer_setfn(&program.timer, (os_timer_func_t *)tick, NULL);
+  struct espconn *conn = (espconn *)arg;
+  const char *response = "HTTP/1.1 200 OK\r\n\r\nOK\0";
+  espconn_send(conn, (uint8 *)response, strlen(response));
+  program_start(&program);
+}
 
-  program.load(blinky, sizeof(blinky));
-  tick();
-  // wifi.connectTo("HomeBots", "HomeBots");
-  // wifi.startAccessPoint("HomeBots");
+void onDisconnect(void *arg)
+{
+  TRACE("Client disconnected\n");
+  checkAgain();
+}
+
+void onReconnect(void *arg, int error)
+{
+  TRACE("Reconnected after error %d\n", error);
+  checkAgain();
+}
+
+void onConnect(void *arg)
+{
+  struct espconn *conn = (espconn *)arg;
+  TRACE("Client connected\n");
+
+  espconn_set_opt(conn, ESPCONN_START | ESPCONN_KEEPALIVE);
+}
+
+void setup()
+{
+  wifi.disconnect();
+  wifi.stopAccessPoint();
+  wifi.connectTo(WIFI_SSID, WIFI_PASSWORD);
+
+  struct espconn *conn = (struct espconn *)os_zalloc(sizeof(struct espconn));
+  conn->type = ESPCONN_TCP;
+  conn->state = ESPCONN_NONE;
+  conn->proto.tcp = (esp_tcp *)os_zalloc(sizeof(esp_tcp));
+  conn->proto.tcp->local_port = 3000;
+
+  espconn_create(conn);
+  espconn_regist_time(conn, 5, 1);
+  espconn_regist_connectcb(conn, &onConnect);
+  espconn_regist_recvcb(conn, &onReceive);
+  espconn_regist_disconcb(conn, &onDisconnect);
+  espconn_regist_sentcb(conn, (espconn_sent_callback)&checkAgain);
+  espconn_accept(conn);
+
+  os_timer_setfn(&wifiTimer, &checkConnection, conn);
+  checkAgain();
 }
