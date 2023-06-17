@@ -10,8 +10,15 @@
 #define WIFI_PASSWORD ""
 #endif
 
+#ifdef WITH_DEBUG
+#define TRACE(...) os_printf(__VA_ARGS__);
+#else
+#define TRACE(...)
+#endif
+
 static Program program;
 static os_timer_t wifiTimer;
+static struct espconn *conn;
 
 void checkAgain()
 {
@@ -75,15 +82,19 @@ void checkConnection(void *arg)
   }
 }
 
-void onReceive(void *arg, char *pdata, unsigned short len)
+void onReceive(void *arg, char *pdata, unsigned short length)
 {
-  TRACE("Received %d bytes\n", len);
-  program_load(&program, (unsigned char *)pdata, (uint)len);
-
+  TRACE("Received %d bytes\n", length);
+  program_load(&program, (unsigned char *)pdata, (uint)length);
   struct espconn *conn = (espconn *)arg;
-  const char *response = "HTTP/1.1 200 OK\r\n\r\nOK\0";
+  const char *response = "HTTP/1.1 200 OK\r\n\r\nOK\0\r\n";
   espconn_send(conn, (uint8 *)response, strlen(response));
   program_start(&program);
+}
+
+void onSend(char *data, int length)
+{
+  espconn_send(conn, (uint8 *)data, length);
 }
 
 void onDisconnect(void *arg)
@@ -111,8 +122,9 @@ void setup()
   wifi.disconnect();
   wifi.stopAccessPoint();
   wifi.connectTo(WIFI_SSID, WIFI_PASSWORD);
+  wifi.startAccessPoint();
 
-  struct espconn *conn = (struct espconn *)os_zalloc(sizeof(struct espconn));
+  conn = (struct espconn *)os_zalloc(sizeof(struct espconn));
   conn->type = ESPCONN_TCP;
   conn->state = ESPCONN_NONE;
   conn->proto.tcp = (esp_tcp *)os_zalloc(sizeof(esp_tcp));
@@ -125,6 +137,8 @@ void setup()
   espconn_regist_disconcb(conn, &onDisconnect);
   espconn_regist_sentcb(conn, (espconn_sent_callback)&checkAgain);
   espconn_accept(conn);
+
+  program.onSend = &onSend;
 
   os_timer_setfn(&wifiTimer, &checkConnection, conn);
   checkAgain();

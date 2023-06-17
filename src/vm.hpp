@@ -13,13 +13,7 @@ typedef unsigned char *byteref;
 typedef unsigned int uint;
 typedef unsigned int *uintref;
 
-#ifdef WITH_DEBUG
-#define TRACE(...) os_printf(__VA_ARGS__);
-#else
-#define TRACE(...)
-#endif
-
-// system instructions
+// system instructions [0x01..0x1f]
 const byte op_noop = 0x01;
 const byte op_halt = 0x02;
 const byte op_restart = 0x03;
@@ -34,7 +28,7 @@ const byte op_jumpif = 0x0b;
 const byte op_sleep = 0x0c;
 const byte op_declare = 0x0d;
 
-// binary operations
+// binary operations [0x20..0x3f]
 const byte op_gt = 0x20;
 const byte op_gte = 0x21;
 const byte op_lt = 0x22;
@@ -57,7 +51,7 @@ const byte op_dec = 0x30;
 
 const byte op_assign = 0x31;
 
-// memory/io instructions
+// memory/io instructions [0x40..0x5f]
 const byte op_memget = 0x40;
 const byte op_memset = 0x41;
 // const byte op_memcopy = 0x42;
@@ -71,22 +65,24 @@ const byte op_iointerrupt = 0x48;
 const byte op_iointerruptEnable = 0x49;
 const byte op_iointerruptDisable = 0x4a;
 
-const byte op_wifistatus = 0x3c;
-const byte op_wifiap = 0x3d;
-// const byte op_wificonnect = 0x3a;
-// const byte op_wifidisconnect = 0x3b;
-// const byte op_wifilist = 0x3e;
+// wifi [0x60..0x6f]
+const byte op_wifistatus = 0x60;
+const byte op_wifiap = 0x61;
+const byte op_wificonnect = 0x62;
+const byte op_wifidisconnect = 0x63;
+const byte op_wifilist = 0x64;
 
-// const byte op_i2setup = 0x50;
-// const byte op_i2start = 0x51;
-// const byte op_i2stop = 0x52;
-// const byte op_i2write = 0x53;
-// const byte op_i2read = 0x54;
-// const byte op_i2setack = 0x55;
-// const byte op_i2getack = 0x56;
-// const byte op_i2find = 0x57;
-// const byte op_i2writeack = 0x58;
-// const byte op_i2writeack_b = 0x59;
+// protocols [0x70..0x8f]
+// const byte op_i2setup = 0x70;
+// const byte op_i2start = 0x71;
+// const byte op_i2stop = 0x72;
+// const byte op_i2write = 0x73;
+// const byte op_i2read = 0x74;
+// const byte op_i2setack = 0x75;
+// const byte op_i2getack = 0x76;
+// const byte op_i2find = 0x77;
+// const byte op_i2writeack = 0x78;
+// const byte op_i2writeack_b = 0x79;
 
 const byte vt_null = 0;
 const byte vt_identifier = 1;
@@ -108,7 +104,6 @@ protected:
   {
     if (hasValue)
     {
-      TRACE("free %d\n", value);
       os_free(value);
       value = NULL;
     }
@@ -196,6 +191,8 @@ public:
   }
 };
 
+typedef void (*send_callback)(char *, int);
+
 typedef struct
 {
   os_timer_t timer;
@@ -206,19 +203,35 @@ typedef struct
   Value slots[MAX_SLOTS];
   uint interruptHandlers[NUMBER_OF_PINS];
   bool paused = false;
-  bool debugEnabled = true;
+  bool debugger = false;
+  send_callback onSend = 0;
 } Program;
 
 static Wifi wifi;
 
 void program_tick(void *p);
+void program_printf(Program *p, const char *format, ...) __attribute__((format(printf, 2, 3)));
+
+void program_printf(Program *p, const char *format, ...)
+{
+  if (p->onSend == 0 || !p->debugger)
+  {
+    return;
+  }
+
+  va_list arg;
+  va_start(arg, format);
+  char buffer[1024];
+  int length = os_sprintf(buffer, format, arg);
+  va_end(arg);
+  p->onSend(buffer, length);
+}
 
 void _onInterruptTrigger(void *arg, uint8_t pin)
 {
   Program *p = (Program *)arg;
   p->counter = p->interruptHandlers[pin];
   p->paused = false;
-  TRACE("jump to %d via interrupt\n", p->counter);
 
   program_tick(p);
 }
@@ -231,23 +244,23 @@ void _printValue(Program *p, Value value)
     _printValue(p, p->slots[value.toByte()]);
     break;
   case vt_byte:
-    os_printf("%02x", value.toByte());
+    program_printf(p, "%02x", value.toByte());
     break;
 
   case vt_pin:
-    os_printf("%d", value.fromPin());
+    program_printf(p, "%d", value.fromPin());
     break;
 
   case vt_integer:
-    os_printf("%d", value.toInteger());
+    program_printf(p, "%d", value.toInteger());
     break;
 
   case vt_address:
-    os_printf("%p", value.fromAddress());
+    program_printf(p, "%p", value.fromAddress());
     break;
 
   case vt_string:
-    os_printf("%s", value.toString());
+    program_printf(p, "%s", value.toString());
     break;
   }
 }
@@ -376,7 +389,7 @@ void binaryOperation(Program *p, byte operation)
   }
 
   updateSlotWithInteger(p, target.toByte(), newValue);
-  TRACE("Binary %d: $%d = %d\n", operation, target.toByte(), newValue);
+  program_printf(p, "Binary %d: $%d = %d\n", operation, target.toByte(), newValue);
 }
 
 void unaryOperation(Program *p, byte operation)
@@ -385,7 +398,7 @@ void unaryOperation(Program *p, byte operation)
   auto newValue = target.toInteger() + ((operation == op_inc) ? 1 : -1);
 
   updateSlotWithInteger(p, target.toByte(), newValue);
-  TRACE("Unary %d: $%d = %d\n", operation, target.toByte(), newValue);
+  program_printf(p, "Unary %d: $%d = %d\n", operation, target.toByte(), newValue);
 }
 
 void notOperation(Program *p)
@@ -394,7 +407,7 @@ void notOperation(Program *p)
   auto value = !readValue(p).toBoolean();
 
   updateSlotWithInteger(p, target.toByte(), (uint)value);
-  TRACE("Not %d: %d\n", target.toByte(), value);
+  program_printf(p, "Not %d: %d\n", target.toByte(), value);
 }
 
 void assignOperation(Program *p)
@@ -409,14 +422,14 @@ void sleep(Program *p)
 {
   auto time = readValue(p).toInteger();
 
-  TRACE("sleep %ld\n", time);
+  program_printf(p, "sleep %ld\n", time);
   system_deep_sleep_set_option(2);
   system_deep_sleep((uint64_t)time);
 }
 
 void halt(Program *p)
 {
-  TRACE("halt\n");
+  program_printf(p, "halt\n");
   p->paused = true;
 }
 
@@ -434,7 +447,7 @@ void delay(Program *p)
     p->delayTime = MAX_DELAY;
   }
 
-  TRACE("delay %d\n", p->delayTime);
+  program_printf(p, "delay %d\n", p->delayTime);
 }
 
 void ioInterrupt(Program *p)
@@ -444,28 +457,28 @@ void ioInterrupt(Program *p)
   auto position = readValue(p).toInteger();
 
   p->interruptHandlers[pin] = position;
-  TRACE("interrupt pin %d, mode %d, jump to %d\n", pin, mode, position);
+  program_printf(p, "interrupt pin %d, mode %d, jump to %d\n", pin, mode, position);
 
   attachPinInterrupt(pin, (interruptCallbackHandler)&_onInterruptTrigger, (void *)p, (GPIO_INT_TYPE)mode);
 }
 
-void ioInterruptEnable()
+void ioInterruptEnable(Program *p)
 {
   armInterrupts();
-  TRACE("interrupts armed\n");
+  program_printf(p, "interrupts armed\n");
 }
 
-void ioInterruptDisable()
+void ioInterruptDisable(Program *p)
 {
   disarmInterrupts();
-  TRACE("interrupts disarmed\n");
+  program_printf(p, "interrupts disarmed\n");
 }
 
 void jumpTo(Program *p)
 {
   auto position = readValue(p);
   p->counter = position.toInteger();
-  TRACE("jump to %d\n", p->counter);
+  program_printf(p, "jump to %d\n", p->counter);
 }
 
 void jumpIf(Program *p)
@@ -477,7 +490,7 @@ void jumpIf(Program *p)
     return;
 
   p->counter = position.toInteger();
-  TRACE("jump if: %d\n", p->counter);
+  program_printf(p, "jump if: %d\n", p->counter);
 }
 
 void toggleDebug(Program *p)
@@ -487,44 +500,51 @@ void toggleDebug(Program *p)
   if (value)
   {
     system_uart_de_swap();
-    TRACE("debug is on\n");
+    program_printf(p, "debug is on\n");
+    p->debugger = false;
     return;
   }
 
-  TRACE("debug is off\n");
+  p->debugger = true;
+  program_printf(p, "debug is off\n");
   system_uart_swap();
 }
 
-void systemInformation()
+void printStationStatus(Program *p)
 {
-  TRACE("Chip %ld\n", system_get_chip_id());
-  TRACE("SDK %s\n", system_get_sdk_version());
-  TRACE("Time %ld\n", system_get_time() / 1000);
+  // TODO
+}
+
+void systemInformation(Program *p)
+{
+  program_printf(p, "Chip %ld\n", system_get_chip_id());
+  program_printf(p, "SDK %s\n", system_get_sdk_version());
+  program_printf(p, "Time %ld\n", system_get_time() / 1000);
   system_print_meminfo();
-  TRACE("Free %ld bytes\n", system_get_free_heap_size());
+  program_printf(p, "Free %ld bytes\n", system_get_free_heap_size());
 }
 
 void dump(Program *p)
 {
   uint i = 0;
-  os_printf("\nProgram\n");
+  program_printf(p, "\nProgram\n");
   while (i < p->endOfTheProgram)
   {
-    os_printf("%02x ", p->bytes[i++]);
+    program_printf(p, "%02x ", p->bytes[i++]);
   }
 
-  os_printf("\nSlots\n");
+  program_printf(p, "\nSlots\n");
   for (i = 0; i < MAX_SLOTS; i++)
   {
-    os_printf("%d: '", i);
+    program_printf(p, "%d: '", i);
     _printValue(p, p->slots[i]);
-    os_printf("'\n");
+    program_printf(p, "'\n");
   }
 
-  os_printf("\nInterrupts\n");
+  program_printf(p, "\nInterrupts\n");
   for (i = 0; i < NUMBER_OF_PINS; i++)
   {
-    os_printf("%d: %d\n", i, p->interruptHandlers[i]);
+    program_printf(p, "%d: %d\n", i, p->interruptHandlers[i]);
   }
 }
 
@@ -541,9 +561,9 @@ void declareReference(Program *p)
 
   p->slots[slotId].update(value);
 
-  TRACE("declare %d, %d = ", slotId, p->slots[slotId].getType());
+  program_printf(p, "declare %d, %d = ", slotId, p->slots[slotId].getType());
   _printValue(p, p->slots[slotId]);
-  TRACE("\n");
+  program_printf(p, "\n");
 }
 
 void readFromMemory(Program *p)
@@ -551,7 +571,7 @@ void readFromMemory(Program *p)
   auto slotId = readValue(p).toByte();
   auto address = (void *)readValue(p).toInteger();
 
-  TRACE("memget [%d], %ld\n", slotId, address);
+  program_printf(p, "memget [%d], %ld\n", slotId, address);
 
   // if (1)
   // {
@@ -573,7 +593,7 @@ void writeToMemory(Program *p)
   auto address = readValue(p).toInteger();
   auto value = readValue(p);
 
-  TRACE("memset %ld\n", address);
+  program_printf(p, "memset %ld\n", address);
 
   switch (value.getType())
   {
@@ -600,7 +620,7 @@ void ioMode(Program *p)
   auto pin = readValue(p).toByte();
   auto value = readValue(p).toByte();
 
-  TRACE("io mode %d %d\n", pin, value);
+  program_printf(p, "io mode %d %d\n", pin, value);
   pinMode(pin, (PinMode)value);
 }
 
@@ -609,7 +629,7 @@ void ioType(Program *p)
   auto pin = readValue(p).toByte();
   auto value = readValue(p).toByte();
 
-  TRACE("io type %d %d\n", pin, value);
+  program_printf(p, "io type %d %d\n", pin, value);
   pinType(pin, value);
 }
 
@@ -618,7 +638,7 @@ void ioWrite(Program *p)
   auto pin = readValue(p).toByte();
   auto value = readValue(p).toBoolean();
 
-  TRACE("io write %d %d\n", pin, value);
+  program_printf(p, "io write %d %d\n", pin, value);
   pinWrite(pin, (bool)value);
 }
 
@@ -629,12 +649,12 @@ void ioRead(Program *p)
   auto pinValue = (byte)pinRead(pin);
 
   updateSlotWithInteger(p, target.toByte(), (uint)pinValue);
-  TRACE("io read %d, %d\n", pin, pinValue);
+  program_printf(p, "io read %d, %d\n", pin, pinValue);
 }
 
-void ioAllOut()
+void ioAllOut(Program *p)
 {
-  TRACE("io all out\n");
+  program_printf(p, "io all out\n");
   pinType(0, 0);
   pinType(1, 3);
   pinType(2, 0);
@@ -645,8 +665,9 @@ void ioAllOut()
   pinMode(3, PinOutput);
 }
 
-void startAccessPoint()
+void startAccessPoint(Program *p)
 {
+  program_printf(p, "startAccessPoint\n");
   wifi.startAccessPoint();
 }
 
@@ -672,7 +693,7 @@ void program_next(Program *p)
     break;
 
   case op_systeminfo:
-    systemInformation();
+    systemInformation(p);
     break;
 
   case op_sleep:
@@ -716,7 +737,7 @@ void program_next(Program *p)
     break;
 
   case op_ioallout:
-    ioAllOut();
+    ioAllOut(p);
     break;
 
   case op_iointerrupt:
@@ -724,11 +745,11 @@ void program_next(Program *p)
     break;
 
   case op_iointerruptEnable:
-    ioInterruptEnable();
+    ioInterruptEnable(p);
     break;
 
   case op_iointerruptDisable:
-    ioInterruptDisable();
+    ioInterruptDisable(p);
     break;
 
   case op_delay:
@@ -778,15 +799,15 @@ void program_next(Program *p)
     break;
 
   case op_wifiap:
-    startAccessPoint();
+    startAccessPoint(p);
     break;
 
   case op_wifistatus:
-    wifi.printStationStatus();
+    printStationStatus(p);
     break;
 
   default:
-    TRACE("\n[!] Invalid operation: %02x\n", next);
+    program_printf(p, "\n[!] Invalid operation: %02x\n", next);
     halt(p);
   }
 
@@ -803,7 +824,7 @@ void program_tick(void *p)
   if (program->paused)
   {
     os_timer_disarm(&program->timer);
-    TRACE("\n[!] program is paused\n");
+    program_printf(program, "\n[!] program is paused\n");
     return;
   }
 
@@ -837,7 +858,7 @@ void program_load(Program *program, byteref _bytes, uint length)
   program->counter = 0;
   program->paused = false;
 
-  TRACE("Loaded %d bytes\n", length);
+  program_printf(program, "[i] Loaded %d bytes\n", length);
 }
 
 void program_start(Program *program)
