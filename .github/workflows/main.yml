@@ -8,7 +8,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
+
       - name: Build firmware
         run: make build
       - name: Upload firmware
@@ -24,6 +25,9 @@ jobs:
       contents: write
       packages: write
     steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
       - name: Download firmware
         uses: actions/download-artifact@v2
         with:
@@ -69,11 +73,12 @@ jobs:
 
       - name: Upload to ESP flash
         run: |
-          curl -X POST ${{ secrets.ESP_LIVE_URL }}/prepare
+          curl -sS -X POST ${{ secrets.ESP_LIVE_URL }}/prepare
 
           for i in $(ls firmware -1 | grep '0x'); do
             curl -sS ${{ secrets.ESP_LIVE_URL }}/upload/$i -d @firmware/$i;
           done
 
-          curl -X POST ${{ secrets.ESP_LIVE_URL }}/flash
-          curl -X POST ${{ secrets.ESP_LIVE_URL }}/run
+          curl -sS -X POST ${{ secrets.ESP_LIVE_URL }}/flash
+          curl -sS -X POST ${{ secrets.ESP_LIVE_URL }}/reset
+          curl -sS -X POST ${{ secrets.ESP_LIVE_URL }}/connect
