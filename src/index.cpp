@@ -7,7 +7,7 @@
 // WIFI_SSID and WIFI_SSID should be defined as environment variables
 #ifndef WIFI_SSID
 #define WIFI_SSID "HomeBots"
-#define WIFI_PASSWORD ""
+#define WIFI_PASSWORD "HomeBots"
 #endif
 
 #ifdef WITH_DEBUG
@@ -84,9 +84,15 @@ void checkConnection(void *arg)
 
 void onReceive(void *arg, char *data, unsigned short length)
 {
-  TRACE("Received %d bytes\n", length);
-
+  TRACE("Received %d bytes: %s\n", length, data);
   int i = 0;
+
+  while (i < length)
+  {
+    os_printf("%02x", data[i++]);
+  }
+
+  i = 0;
   struct espconn *conn = (espconn *)arg;
 
   while (i < length)
@@ -94,6 +100,7 @@ void onReceive(void *arg, char *data, unsigned short length)
     if (data[i] == '\r' && strncmp(data + i, "\r\n\r\n", 4) == 0)
     {
       i += 3;
+      os_printf("Program at %d\n", i);
       program_load(&program, (unsigned char *)data + i, length - i);
       const char *response = "HTTP/1.1 200 OK\r\n\r\nOK\0\r\n";
       espconn_send(conn, (uint8 *)response, strlen(response));
@@ -138,8 +145,8 @@ void setup()
 {
   wifi.disconnect();
   wifi.stopAccessPoint();
-  wifi.connectTo(WIFI_SSID, WIFI_PASSWORD);
   wifi.startAccessPoint();
+  wifi.connectTo(WIFI_SSID, WIFI_PASSWORD);
 
   conn = (struct espconn *)os_zalloc(sizeof(struct espconn));
   conn->type = ESPCONN_TCP;
