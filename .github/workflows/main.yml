@@ -44,22 +44,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           vsha=${{ github.sha }}
-          version=$(echo $vsha | cut -b -10)
+          version=$(echo $vsha | cut -b -5)
           date=$(date -Idate)
           echo $version
 
-          gh release create "$version" --latest --title "Release $version" --notes "New firmware version from $date. See flash instructions [on README.md](https://github.com/homebots/vm)" firmware.tgz
-
-      - name: Upload to ESP flash
-        run: |
-          curl ${{ secrets.ESP_LIVE_URL }}/prepare
-
-          for i in $(ls firmware -1); do
-            curl -sS ${{ secrets.ESP_LIVE_URL }}/upload/$i -d @firmware/$i;
-          done
-
-          curl ${{ secrets.ESP_LIVE_URL }}/flash
-          curl ${{ secrets.ESP_LIVE_URL }}/run
+          gh release create "v1-$version" --latest --title "Release $version" --notes "New firmware version from $date. See flash instructions [on README.md](https://github.com/homebots/vm)" firmware.tgz
 
   flash:
     runs-on: ubuntu-latest
@@ -73,6 +62,7 @@ jobs:
 
       - name: Upload to ESP flash
         run: |
+          set -xe
           curl -sS -X POST ${{ secrets.ESP_LIVE_URL }}/prepare
 
           for i in $(ls firmware -1 | grep '0x'); do
@@ -81,4 +71,5 @@ jobs:
 
           curl -sS -X POST ${{ secrets.ESP_LIVE_URL }}/flash
           curl -sS -X POST ${{ secrets.ESP_LIVE_URL }}/reset
+          sleep 5
           curl -sS -X POST ${{ secrets.ESP_LIVE_URL }}/connect
