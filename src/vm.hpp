@@ -26,9 +26,9 @@ const byte op_print = 0x09;
 const byte op_jumpto = 0x0a;
 const byte op_jumpif = 0x0b;
 const byte op_sleep = 0x0c;
-const byte op_declare = 0x0d;
 
-// binary operations [0x20..0x3f]
+// operators [0x20..0x3f]
+// binary operations
 const byte op_gt = 0x20;
 const byte op_gte = 0x21;
 const byte op_lt = 0x22;
@@ -50,11 +50,11 @@ const byte op_inc = 0x2f;
 const byte op_dec = 0x30;
 
 const byte op_assign = 0x31;
+const byte op_declare = 0x32;
 
 // memory/io instructions [0x40..0x5f]
 const byte op_memget = 0x40;
 const byte op_memset = 0x41;
-// const byte op_memcopy = 0x42;
 
 const byte op_iowrite = 0x43;
 const byte op_ioread = 0x44;
@@ -62,8 +62,7 @@ const byte op_iomode = 0x45;
 const byte op_iotype = 0x46;
 const byte op_ioallout = 0x47;
 const byte op_iointerrupt = 0x48;
-const byte op_iointerruptEnable = 0x49;
-const byte op_iointerruptDisable = 0x4a;
+const byte op_iointerruptToggle = 0x49;
 
 // wifi [0x60..0x6f]
 const byte op_wifistatus = 0x60;
@@ -73,16 +72,16 @@ const byte op_wifidisconnect = 0x63;
 const byte op_wifilist = 0x64;
 
 // protocols [0x70..0x8f]
-// const byte op_i2setup = 0x70;
-// const byte op_i2start = 0x71;
-// const byte op_i2stop = 0x72;
-// const byte op_i2write = 0x73;
-// const byte op_i2read = 0x74;
-// const byte op_i2setack = 0x75;
-// const byte op_i2getack = 0x76;
-// const byte op_i2find = 0x77;
-// const byte op_i2writeack = 0x78;
-// const byte op_i2writeack_b = 0x79;
+const byte op_i2csetup = 0x70;
+const byte op_i2cstart = 0x71;
+const byte op_i2cstop = 0x72;
+const byte op_i2cwrite = 0x73;
+const byte op_i2cread = 0x74;
+const byte op_i2csetack = 0x75;
+const byte op_i2cgetack = 0x76;
+const byte op_i2cfind = 0x77;
+const byte op_i2cwriteack = 0x78;
+const byte op_i2cwriteack_b = 0x79;
 
 const byte vt_null = 0;
 const byte vt_identifier = 1;
@@ -462,14 +461,17 @@ void ioInterrupt(Program *p)
   attachPinInterrupt(pin, (interruptCallbackHandler)&_onInterruptTrigger, (void *)p, (GPIO_INT_TYPE)mode);
 }
 
-void ioInterruptEnable(Program *p)
+void ioInterruptToggle(Program *p)
 {
-  armInterrupts();
-  program_printf(p, "interrupts armed\n");
-}
+  auto enabled = readValue(p).toBoolean();
 
-void ioInterruptDisable(Program *p)
-{
+  if (enabled)
+  {
+    armInterrupts();
+    program_printf(p, "interrupts armed\n");
+    return;
+  }
+
   disarmInterrupts();
   program_printf(p, "interrupts disarmed\n");
 }
@@ -671,6 +673,71 @@ void startAccessPoint(Program *p)
   wifi.startAccessPoint();
 }
 
+void wifiConnect(Program *p)
+{
+  auto ssid = readValue(p).toString();
+  auto password = readValue(p);
+  bool hasPassword = password.getType() == vt_string;
+
+  program_printf(p, "connect to %s / %s\n", ssid, password.toString());
+
+  if (hasPassword)
+  {
+    wifi.connectTo((const char *)ssid, (const char *)password.toString());
+    return;
+  }
+
+  wifi.connectTo((const char *)ssid, (const char *)NULL);
+}
+
+void wifiDisconnect(Program *p)
+{
+  wifi.disconnect();
+}
+
+void wifiList(Program *p)
+{
+  // TODO
+}
+
+void i2csetup(Program *p)
+{
+  auto dataPin = readValue(p).toByte();
+  auto clockPin = readValue(p).toByte();
+
+  i2c_setup(dataPin, clockPin);
+  program_printf(p, "i2c setup SDA=%d SCL=%d\n", dataPin, clockPin);
+}
+
+void i2cstart(Program *p)
+{
+  program_printf(p, "i2c start\n");
+  i2c_start();
+}
+
+void i2cstop(Program *p)
+{
+  program_printf(p, "i2c stop\n");
+  i2c_stop();
+}
+
+void i2cwrite(Program *p)
+{
+  auto byte = readValue(p).toByte();
+  program_printf(p, "i2c write %d\n", byte);
+  i2c_writeByteAndAck(byte);
+}
+
+void i2cread(Program *p)
+{
+  auto target = readValue(p);
+  byte value = i2c_readByte();
+  void *v = os_zalloc(sizeof(byte));
+  *(byte *)v = value;
+  p->slots[target.toByte()].update(vt_byte, &v, true);
+  program_printf(p, "i2c read %d\n", value);
+}
+
 void program_next(Program *p)
 {
   byte next = *(readByte(p));
@@ -744,12 +811,8 @@ void program_next(Program *p)
     ioInterrupt(p);
     break;
 
-  case op_iointerruptEnable:
-    ioInterruptEnable(p);
-    break;
-
-  case op_iointerruptDisable:
-    ioInterruptDisable(p);
+  case op_iointerruptToggle:
+    ioInterruptToggle(p);
     break;
 
   case op_delay:
@@ -798,12 +861,24 @@ void program_next(Program *p)
     assignOperation(p);
     break;
 
+  case op_wifistatus:
+    printStationStatus(p);
+    break;
+
   case op_wifiap:
     startAccessPoint(p);
     break;
 
-  case op_wifistatus:
-    printStationStatus(p);
+  case op_wificonnect:
+    wifiConnect(p);
+    break;
+
+  case op_wifidisconnect:
+    wifiDisconnect(p);
+    break;
+
+  case op_wifilist:
+    wifiList(p);
     break;
 
   default:

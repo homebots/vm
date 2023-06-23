@@ -82,14 +82,31 @@ void checkConnection(void *arg)
   }
 }
 
-void onReceive(void *arg, char *pdata, unsigned short length)
+void onReceive(void *arg, char *data, unsigned short length)
 {
   TRACE("Received %d bytes\n", length);
-  program_load(&program, (unsigned char *)pdata, (uint)length);
+
+  int i = 0;
   struct espconn *conn = (espconn *)arg;
-  const char *response = "HTTP/1.1 200 OK\r\n\r\nOK\0\r\n";
+
+  while (i < length)
+  {
+    if (data[i] == '\r' && strncmp(data + i, "\r\n\r\n", 4) == 0)
+    {
+      i += 3;
+      program_load(&program, (unsigned char *)data + i, length - i);
+      const char *response = "HTTP/1.1 200 OK\r\n\r\nOK\0\r\n";
+      espconn_send(conn, (uint8 *)response, strlen(response));
+      program_start(&program);
+      return;
+    }
+
+    i++;
+  }
+
+  const char *response = "HTTP/1.1 400 Bad payload\r\n\r\n";
   espconn_send(conn, (uint8 *)response, strlen(response));
-  program_start(&program);
+  espconn_disconnect(conn);
 }
 
 void onSend(char *data, int length)
