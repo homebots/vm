@@ -16,3 +16,21 @@ jobs:
         with:
           name: firmware
           path: firmware/
+
+  release:
+    runs-on: ubuntu-latest
+    needs: [build]
+    steps:
+      - name: Download firmware
+        uses: actions/download-artifact@v2
+        with:
+          name: firmware
+          path: firmware/
+
+      - name: Create release
+        run: |
+          version=v${{ github.sha }}
+          gh release create $version --title "Release $version" --notes "New firmware version"
+          tar czf firmware.tgz firmware/
+          gh release upload $version firmware.tgz --clobber
+
