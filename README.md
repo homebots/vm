@@ -8,6 +8,16 @@ Virtual Machine to execute programs on an esp8266 without the need to flash a ne
 
 See [releases](https://github.com/homebots/vm/releases).
 
+The firmwares from releases are separated into two parts.
+Each file has the flash address in its name, like `0x10000.bin`.
+Use that to correctly flash the firmware parts.
+
+Command example:
+
+```sh
+esptool.py write_flash --compress --flash_freq 80m -fm qio -fs 1MB 0x10000 0x10000.bin
+```
+
 **From source:**
 
 ```bash
