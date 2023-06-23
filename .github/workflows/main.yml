@@ -12,6 +12,10 @@ jobs:
 
       - name: Build firmware
         run: make build
+        env:
+          WIFI_SSID: ${{ secrets.WIFI_SSID }}
+          WIFI_PASSWORD: ${{ secrets.WIFI_PASSWORD }}
+
       - name: Upload firmware
         uses: actions/upload-artifact@v2
         with:
