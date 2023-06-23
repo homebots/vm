@@ -119,9 +119,10 @@ void onReceive(void *arg, char *data, unsigned short length)
     {
       if (data[i] == 0x0d && strncmp(data + i, separator, 4) == 0)
       {
-        i += 3;
+        i += 4;
         os_printf("Program at %d\n", i);
         program_load(&program, (unsigned char *)data + i, length - i);
+        os_printf("Program loaded\n");
         program_start(&program);
         espconn_send(conn, (uint8 *)OK, strlen(OK));
         return;
@@ -144,6 +145,8 @@ void onSend(char *data, int length)
 void onDisconnect(void *arg)
 {
   TRACE("Client disconnected\n");
+  struct espconn *conn = (espconn *)arg;
+  espconn_accept(conn);
   checkAgain();
 }
 
