@@ -62,11 +62,12 @@ jobs:
 
       - name: Upload to ESP flash
         run: |
-          set -xe
+          set -e
           curl -sS -X POST ${{ secrets.ESP_LIVE_URL }}/prepare
 
           for i in $(ls firmware -1 | grep '0x'); do
-            curl -sS ${{ secrets.ESP_LIVE_URL }}/upload/$i -d @firmware/$i;
+            stat firmware/$i
+            curl -sS ${{ secrets.ESP_LIVE_URL }}/upload/$i --data-binary @firmware/$i;
           done
 
           curl -sS -X POST ${{ secrets.ESP_LIVE_URL }}/flash
