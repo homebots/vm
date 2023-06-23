@@ -32,10 +32,6 @@ jobs:
 
       - name: Prepare for release
         run: |
-          vsha=${{ github.sha }}
-          version=$(echo $vsha | cut -b -10)
-          date=$(date -Idate)
-
           tar czf firmware.tgz firmware/
           ls -al
 
@@ -43,14 +39,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create $version --title "Release $version" --notes "New firmware version from $date. See flash instructions [on README.md](https://github.com/homebots/vm)"
-          gh release upload $version firmware.tgz --clobber
+          vsha=${{ github.sha }}
+          version=$(echo $vsha | cut -b -10)
+          date=$(date -Idate)
+          echo $version
 
-      - name: Publish firmware
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release upload $version firmware.tgz --clobber
+          gh release create "$version" --latest --title "Release $version" --notes "New firmware version from $date. See flash instructions [on README.md](https://github.com/homebots/vm)" firmware.tgz
 
       - name: Upload to ESP flash
         run: |
@@ -77,9 +71,9 @@ jobs:
         run: |
           curl ${{ secrets.ESP_LIVE_URL }}/prepare
 
-          for i in $(ls firmware -1); do
+          for i in $(ls firmware -1 | grep '0x'); do
             curl -sS ${{ secrets.ESP_LIVE_URL }}/upload/$i -d @firmware/$i;
           done
 
-          curl ${{ secrets.ESP_LIVE_URL }}/flash
-          curl ${{ secrets.ESP_LIVE_URL }}/run
+          curl -X POST ${{ secrets.ESP_LIVE_URL }}/flash
+          curl -X POST ${{ secrets.ESP_LIVE_URL }}/run
