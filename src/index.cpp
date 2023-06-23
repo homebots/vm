@@ -90,7 +90,7 @@ void checkConnection(void *arg)
 
 void onReceive(void *arg, char *data, unsigned short length)
 {
-  TRACE("Received %d bytes: %s\n", length, data);
+  TRACE("Received %d bytes\n", length);
   int i = 0;
 
   while (i < length)
@@ -99,9 +99,10 @@ void onReceive(void *arg, char *data, unsigned short length)
   }
 
   i = 0;
+  struct espconn *conn = (espconn *)arg;
   const char *OK = "HTTP/1.1 200 OK\r\n\r\nOK\r\n";
   const char *notOK = "HTTP/1.1 400 Bad payload\r\n\r\n";
-  struct espconn *conn = (espconn *)arg;
+  const char separator[4] = {0x0d, 0x0a, 0x0d, 0x0a};
 
   if (strncmp(data, "GET", 3) == 0)
   {
@@ -116,14 +117,14 @@ void onReceive(void *arg, char *data, unsigned short length)
   {
     while (i < length)
     {
-      if (data[i] == '\r' && strncmp(data + i, "\r\n\r\n", 4) == 0)
+      if (data[i] == 0x0d && strncmp(data + i, separator, 4) == 0)
       {
         i += 3;
         os_printf("Program at %d\n", i);
         program_load(&program, (unsigned char *)data + i, length - i);
         program_start(&program);
         espconn_send(conn, (uint8 *)OK, strlen(OK));
-        break;
+        return;
       }
 
       i++;

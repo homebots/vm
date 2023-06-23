@@ -202,7 +202,7 @@ typedef struct
   Value slots[MAX_SLOTS];
   uint interruptHandlers[NUMBER_OF_PINS];
   bool paused = false;
-  bool debugger = false;
+  bool debugger = true;
   send_callback onSend = 0;
 } Program;
 
