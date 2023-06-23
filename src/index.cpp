@@ -36,6 +36,12 @@ void checkConnection(void *arg)
       espconn_disconnect(conn);
     }
 
+    auto status = wifi_station_get_connect_status();
+    if (status != STATION_CONNECTING && status != STATION_WRONG_PASSWORD)
+    {
+      wifi.connectTo(WIFI_SSID, WIFI_PASSWORD);
+    }
+
     checkAgain();
     return;
   }
@@ -93,31 +99,44 @@ void onReceive(void *arg, char *data, unsigned short length)
   }
 
   i = 0;
+  const char *OK = "HTTP/1.1 200 OK\r\n\r\nOK\r\n";
+  const char *notOK = "HTTP/1.1 400 Bad payload\r\n\r\n";
   struct espconn *conn = (espconn *)arg;
 
-  while (i < length)
+  if (strncmp(data, "GET", 3) == 0)
   {
-    if (data[i] == '\r' && strncmp(data + i, "\r\n\r\n", 4) == 0)
-    {
-      i += 3;
-      os_printf("Program at %d\n", i);
-      program_load(&program, (unsigned char *)data + i, length - i);
-      const char *response = "HTTP/1.1 200 OK\r\n\r\nOK\0\r\n";
-      espconn_send(conn, (uint8 *)response, strlen(response));
-      program_start(&program);
-      return;
-    }
-
-    i++;
+    espconn_send(conn, (uint8 *)OK, strlen(OK));
+    vm_systemInformation(&program);
+    vm_dump(&program);
+    espconn_disconnect(conn);
+    return;
   }
 
-  const char *response = "HTTP/1.1 400 Bad payload\r\n\r\n";
-  espconn_send(conn, (uint8 *)response, strlen(response));
+  if (strncmp(data, "POST", 4) == 0)
+  {
+    while (i < length)
+    {
+      if (data[i] == '\r' && strncmp(data + i, "\r\n\r\n", 4) == 0)
+      {
+        i += 3;
+        os_printf("Program at %d\n", i);
+        program_load(&program, (unsigned char *)data + i, length - i);
+        program_start(&program);
+        espconn_send(conn, (uint8 *)OK, strlen(OK));
+        break;
+      }
+
+      i++;
+    }
+  }
+
+  espconn_send(conn, (uint8 *)notOK, strlen(notOK));
   espconn_disconnect(conn);
 }
 
 void onSend(char *data, int length)
 {
+
   espconn_send(conn, (uint8 *)data, length);
 }
 
@@ -146,6 +165,7 @@ void setup()
   wifi.disconnect();
   wifi.stopAccessPoint();
   wifi.startAccessPoint();
+  os_printf("Connecting to %s : %s\n", WIFI_SSID, WIFI_PASSWORD);
   wifi.connectTo(WIFI_SSID, WIFI_PASSWORD);
 
   conn = (struct espconn *)os_zalloc(sizeof(struct espconn));

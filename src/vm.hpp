@@ -517,16 +517,15 @@ void printStationStatus(Program *p)
   // TODO
 }
 
-void systemInformation(Program *p)
+void vm_systemInformation(Program *p)
 {
   program_printf(p, "Chip %ld\n", system_get_chip_id());
   program_printf(p, "SDK %s\n", system_get_sdk_version());
   program_printf(p, "Time %ld\n", system_get_time() / 1000);
-  system_print_meminfo();
   program_printf(p, "Free %ld bytes\n", system_get_free_heap_size());
 }
 
-void dump(Program *p)
+void vm_dump(Program *p)
 {
   uint i = 0;
   program_printf(p, "\nProgram\n");
@@ -760,7 +759,7 @@ void program_next(Program *p)
     break;
 
   case op_systeminfo:
-    systemInformation(p);
+    vm_systemInformation(p);
     break;
 
   case op_sleep:
@@ -772,7 +771,7 @@ void program_next(Program *p)
     break;
 
   case op_dump:
-    dump(p);
+    vm_dump(p);
     break;
 
   case op_declare:
