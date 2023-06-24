@@ -4,7 +4,7 @@ Virtual Machine to execute programs on an esp8266 without the need to flash a ne
 
 ## Build and flash
 
-**From prebuilt binaries:**
+### From prebuilt binaries
 
 See [releases](https://github.com/homebots/vm/releases).
 
@@ -12,29 +12,38 @@ The firmwares from releases are separated into two parts.
 Each file has the flash address in its name, like `0x10000.bin`.
 Use that to correctly flash the firmware parts.
 
+
 Command example:
 
 ```sh
 esptool.py write_flash --compress --flash_freq 80m -fm qio -fs 1MB 0x10000 0x10000.bin
 ```
 
-**From source:**
+After flashing, the ESP8266 will start in both Access Point and Wifi mode.
+The AP mode creates an open WIFI called `Homebots_AP`, for local testing.
+The VM opens an HTTP server at port 3000. Connect to this network and use `http://192.168.4.1:3000` to interact with the machine.
+
+### From source
+
+This is the preferred way to use the VM, as you probably want to change the WIFI SSID and password for your devices.
 
 ```bash
+export WIFI_SSID="My_Network"
+export WIFI_PASSWORD="SecretCode123"
+
 make && make flash
 ```
 
-See [`Makefile`](Makefile) for more options.
+See the [`Makefile`](Makefile) for more details on how each command works.
 
 ## Concepts
 
-- every instruction has a unique opcode and is 1-byte long
+- every instruction has a unique code, which is 1-byte long
 - every instruction can have zero or more operands
 - each operand can be of type `Byte`, `Number`, `Integer`, `String` or `Null`.
-  `byte` is also used to represent IO pins or a memory slot.
-  Valid pins are `0`, `1`, `2` or `3`.
-  A type `Integer` is also used to represent memory addresses.
-- values are encoded as a byte for their type, followed by their content.
+- the `Byte` type is also used to represent IO pins or a memory slot to store variable data. Valid pins are `0`, `1`, `2` or `3`.
+- the `Integer` is also used to represent memory addresses.
+- values are encoded as a byte with their type, followed by their content.
   An operator that accepts any type declares its operands as `Value`, to represent any value.
 
 These are the valid _data_ types:
@@ -185,18 +194,20 @@ Each variable is represented as a `Value`.
 
 Example:
 
-```
+```esp
 // declare a variable of type `integer` at slot `0` with initial value `1`:
 // declare = 0x0d
-0x0d, 0x02, 0x00, 0x05, 0x00, 0x00, 0x00, 0x00,
+// 0x02 is vtype "byte"
+// 0x05 is vtype "int"
+0d 02 00 05 01 00 00 00
 
 // store the unsigned integer 1000 in the memory slot
 // assign = 0x31
-0x31, 0x00, 0x05, 0xe8, 0x03, 0x00, 0x00,
+31 02 00 05 e8 03 00 00,
 
 // jump to the beginning of the program
 // jump = 0x0a
 // Integer 1 = 0x05 0x00 0x00 0x00 0x01
 
-0x0a, 0x05, 0x00, 0x00, 0x00, 0x00,
+0a 05 00 00 00 00,
 ```

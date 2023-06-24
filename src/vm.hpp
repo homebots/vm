@@ -2,10 +2,6 @@
 
 #define MAX_DELAY 6871000
 #define MAX_SLOTS 256
-#define MAJOR 1
-#define MINOR 0
-
-typedef unsigned char *string;
 
 typedef unsigned char byte;
 typedef unsigned char *byteref;
@@ -160,7 +156,7 @@ public:
     return pinRead(toByte());
   }
 
-  string toString()
+  byteref toString()
   {
     return (byteref)value;
   }
@@ -213,7 +209,7 @@ void program_printf(Program *p, const char *format, ...) __attribute__((format(p
 
 void program_printf(Program *p, const char *format, ...)
 {
-  if (p->onSend == 0 || !p->debugger)
+  if (p->onSend == NULL || !p->debugger)
   {
     return;
   }
@@ -264,41 +260,19 @@ void _printValue(Program *p, Value value)
   }
 }
 
-void move(Program *p, uint32_t amount)
-{
-  p->counter += amount;
-}
-
 byteref readByte(Program *p)
 {
   byteref reference = &p->bytes[p->counter];
-  move(p, 1);
+  p->counter += 1;
 
   return reference;
-}
-
-uintref readNumber(Program *p)
-{
-  byteref reference = &p->bytes[p->counter];
-  move(p, 4);
-
-  return (uintref)reference;
-}
-
-byteref readString(Program *p)
-{
-  byteref string = &p->bytes[p->counter];
-
-  // extra \0 at the end of string
-  move(p, strlen((const char *)string) + 1);
-
-  return string;
 }
 
 Value readValue(Program *p)
 {
   byte type = *(readByte(p));
   Value value;
+  byteref ref;
 
   switch (type)
   {
@@ -310,18 +284,23 @@ Value readValue(Program *p)
 
   case vt_integer:
   case vt_address:
-    value.update(type, (void *)readNumber(p));
+    ref = &p->bytes[p->counter];
+    p->counter += 4;
+    value.update(type, (void *)ref);
     break;
 
   case vt_string:
-    value.update(type, (void *)readString(p));
+    // extra \0 at the end of string
+    ref = &p->bytes[p->counter];
+    p->counter += strlen((const char *)ref) + 1;
+    value.update(type, (void *)ref);
     break;
   }
 
   return value;
 }
 
-void updateSlotWithInteger(Program *p, byte slotId, uint value)
+void _updateSlotWithInteger(Program *p, byte slotId, uint value)
 {
   auto type = p->slots[slotId].getType();
   auto valueRef = os_zalloc(sizeof(uint));
@@ -330,7 +309,7 @@ void updateSlotWithInteger(Program *p, byte slotId, uint value)
   p->slots[slotId].update(type, valueRef, true);
 }
 
-void binaryOperation(Program *p, byte operation)
+void vm_binaryOperation(Program *p, byte operation)
 {
   auto target = readValue(p);
   auto a = readValue(p);
@@ -387,29 +366,29 @@ void binaryOperation(Program *p, byte operation)
     break;
   }
 
-  updateSlotWithInteger(p, target.toByte(), newValue);
+  _updateSlotWithInteger(p, target.toByte(), newValue);
   program_printf(p, "Binary %d: $%d = %d\n", operation, target.toByte(), newValue);
 }
 
-void unaryOperation(Program *p, byte operation)
+void vm_unaryOperation(Program *p, byte operation)
 {
   auto target = readValue(p);
   auto newValue = target.toInteger() + ((operation == op_inc) ? 1 : -1);
 
-  updateSlotWithInteger(p, target.toByte(), newValue);
+  _updateSlotWithInteger(p, target.toByte(), newValue);
   program_printf(p, "Unary %d: $%d = %d\n", operation, target.toByte(), newValue);
 }
 
-void notOperation(Program *p)
+void vm_notOperation(Program *p)
 {
   auto target = readValue(p);
   auto value = !readValue(p).toBoolean();
 
-  updateSlotWithInteger(p, target.toByte(), (uint)value);
+  _updateSlotWithInteger(p, target.toByte(), (uint)value);
   program_printf(p, "Not %d: %d\n", target.toByte(), value);
 }
 
-void assignOperation(Program *p)
+void vm_assignOperation(Program *p)
 {
   auto target = readValue(p);
   auto value = readValue(p);
@@ -417,7 +396,7 @@ void assignOperation(Program *p)
   p->slots[target.toByte()].update(value);
 }
 
-void sleep(Program *p)
+void vm_sleep(Program *p)
 {
   auto time = readValue(p).toInteger();
 
@@ -426,18 +405,18 @@ void sleep(Program *p)
   system_deep_sleep((uint64_t)time);
 }
 
-void halt(Program *p)
+void vm_halt(Program *p)
 {
   program_printf(p, "halt\n");
   p->paused = true;
 }
 
-void yield(Program *p)
+void vm_yield(Program *p)
 {
   p->delayTime = 1;
 }
 
-void delay(Program *p)
+void vm_delay(Program *p)
 {
   p->delayTime = readValue(p).toInteger();
 
@@ -449,7 +428,7 @@ void delay(Program *p)
   program_printf(p, "delay %d\n", p->delayTime);
 }
 
-void ioInterrupt(Program *p)
+void vm_ioInterrupt(Program *p)
 {
   auto pin = readValue(p).toByte();
   auto mode = readValue(p).toByte();
@@ -461,7 +440,7 @@ void ioInterrupt(Program *p)
   attachPinInterrupt(pin, (interruptCallbackHandler)&_onInterruptTrigger, (void *)p, (GPIO_INT_TYPE)mode);
 }
 
-void ioInterruptToggle(Program *p)
+void vm_ioInterruptToggle(Program *p)
 {
   auto enabled = readValue(p).toBoolean();
 
@@ -476,14 +455,14 @@ void ioInterruptToggle(Program *p)
   program_printf(p, "interrupts disarmed\n");
 }
 
-void jumpTo(Program *p)
+void vm_jumpTo(Program *p)
 {
   auto position = readValue(p);
   p->counter = position.toInteger();
   program_printf(p, "jump to %d\n", p->counter);
 }
 
-void jumpIf(Program *p)
+void vm_jumpIf(Program *p)
 {
   auto condition = readValue(p);
   auto position = readValue(p);
@@ -495,24 +474,24 @@ void jumpIf(Program *p)
   program_printf(p, "jump if: %d\n", p->counter);
 }
 
-void toggleDebug(Program *p)
+void vm_toggleDebug(Program *p)
 {
-  auto value = *(readByte(p));
+  auto value = readValue(p).toBoolean();
 
   if (value)
   {
     system_uart_de_swap();
-    program_printf(p, "debug is on\n");
+    program_printf(p, "serial debug on\n");
     p->debugger = false;
     return;
   }
 
   p->debugger = true;
-  program_printf(p, "debug is off\n");
+  program_printf(p, "serial debug off\n");
   system_uart_swap();
 }
 
-void printStationStatus(Program *p)
+void vm_printStationStatus(Program *p)
 {
   // TODO
 }
@@ -549,13 +528,13 @@ void vm_dump(Program *p)
   }
 }
 
-void print(Program *p)
+void vm_print(Program *p)
 {
   auto value = readValue(p);
   _printValue(p, value);
 }
 
-void declareReference(Program *p)
+void vm_declareReference(Program *p)
 {
   auto slotId = readValue(p).toByte();
   auto value = readValue(p);
@@ -567,7 +546,7 @@ void declareReference(Program *p)
   program_printf(p, "\n");
 }
 
-void readFromMemory(Program *p)
+void vm_readFromMemory(Program *p)
 {
   auto slotId = readValue(p).toByte();
   auto address = (void *)readValue(p).toInteger();
@@ -589,7 +568,7 @@ void readFromMemory(Program *p)
   p->slots[slotId].update(vt_address, address);
 }
 
-void writeToMemory(Program *p)
+void vm_writeToMemory(Program *p)
 {
   auto address = readValue(p).toInteger();
   auto value = readValue(p);
@@ -616,7 +595,7 @@ void writeToMemory(Program *p)
   }
 }
 
-void ioMode(Program *p)
+void vm_ioMode(Program *p)
 {
   auto pin = readValue(p).toByte();
   auto value = readValue(p).toByte();
@@ -625,7 +604,7 @@ void ioMode(Program *p)
   pinMode(pin, (PinMode)value);
 }
 
-void ioType(Program *p)
+void vm_ioType(Program *p)
 {
   auto pin = readValue(p).toByte();
   auto value = readValue(p).toByte();
@@ -634,7 +613,7 @@ void ioType(Program *p)
   pinType(pin, value);
 }
 
-void ioWrite(Program *p)
+void vm_ioWrite(Program *p)
 {
   auto pin = readValue(p).toByte();
   auto value = readValue(p).toBoolean();
@@ -643,17 +622,17 @@ void ioWrite(Program *p)
   pinWrite(pin, (bool)value);
 }
 
-void ioRead(Program *p)
+void vm_ioRead(Program *p)
 {
   auto target = readValue(p);
   auto pin = readValue(p).toByte();
   auto pinValue = (byte)pinRead(pin);
 
-  updateSlotWithInteger(p, target.toByte(), (uint)pinValue);
+  _updateSlotWithInteger(p, target.toByte(), (uint)pinValue);
   program_printf(p, "io read %d, %d\n", pin, pinValue);
 }
 
-void ioAllOut(Program *p)
+void vm_ioAllOut(Program *p)
 {
   program_printf(p, "io all out\n");
   pinType(0, 0);
@@ -666,7 +645,7 @@ void ioAllOut(Program *p)
   pinMode(3, PinOutput);
 }
 
-void startAccessPoint(Program *p)
+void vm_startAccessPoint(Program *p)
 {
   program_printf(p, "startAccessPoint\n");
   wifi.startAccessPoint();
@@ -699,7 +678,7 @@ void wifiList(Program *p)
   // TODO
 }
 
-void i2csetup(Program *p)
+void vm_i2csetup(Program *p)
 {
   auto dataPin = readValue(p).toByte();
   auto clockPin = readValue(p).toByte();
@@ -708,26 +687,26 @@ void i2csetup(Program *p)
   program_printf(p, "i2c setup SDA=%d SCL=%d\n", dataPin, clockPin);
 }
 
-void i2cstart(Program *p)
+void vm_i2cstart(Program *p)
 {
   program_printf(p, "i2c start\n");
   i2c_start();
 }
 
-void i2cstop(Program *p)
+void vm_i2cstop(Program *p)
 {
   program_printf(p, "i2c stop\n");
   i2c_stop();
 }
 
-void i2cwrite(Program *p)
+void vm_i2cwrite(Program *p)
 {
   auto byte = readValue(p).toByte();
   program_printf(p, "i2c write %d\n", byte);
   i2c_writeByteAndAck(byte);
 }
 
-void i2cread(Program *p)
+void vm_i2cread(Program *p)
 {
   auto target = readValue(p);
   byte value = i2c_readByte();
@@ -747,7 +726,7 @@ void program_next(Program *p)
     break;
 
   case op_halt:
-    halt(p);
+    vm_halt(p);
     break;
 
   case op_restart:
@@ -755,7 +734,7 @@ void program_next(Program *p)
     break;
 
   case op_debug:
-    toggleDebug(p);
+    vm_toggleDebug(p);
     break;
 
   case op_systeminfo:
@@ -763,11 +742,11 @@ void program_next(Program *p)
     break;
 
   case op_sleep:
-    sleep(p);
+    vm_sleep(p);
     break;
 
   case op_print:
-    print(p);
+    vm_print(p);
     break;
 
   case op_dump:
@@ -775,59 +754,59 @@ void program_next(Program *p)
     break;
 
   case op_declare:
-    declareReference(p);
+    vm_declareReference(p);
     break;
 
   case op_memget:
-    readFromMemory(p);
+    vm_readFromMemory(p);
     break;
 
   case op_memset:
-    writeToMemory(p);
+    vm_writeToMemory(p);
     break;
 
   case op_iowrite:
-    ioWrite(p);
+    vm_ioWrite(p);
     break;
 
   case op_ioread:
-    ioRead(p);
+    vm_ioRead(p);
     break;
 
   case op_iomode:
-    ioMode(p);
+    vm_ioMode(p);
     break;
 
   case op_iotype:
-    ioType(p);
+    vm_ioType(p);
     break;
 
   case op_ioallout:
-    ioAllOut(p);
+    vm_ioAllOut(p);
     break;
 
   case op_iointerrupt:
-    ioInterrupt(p);
+    vm_ioInterrupt(p);
     break;
 
   case op_iointerruptToggle:
-    ioInterruptToggle(p);
+    vm_ioInterruptToggle(p);
     break;
 
   case op_delay:
-    delay(p);
+    vm_delay(p);
     break;
 
   case op_yield:
-    yield(p);
+    vm_yield(p);
     break;
 
   case op_jumpto:
-    jumpTo(p);
+    vm_jumpTo(p);
     break;
 
   case op_jumpif:
-    jumpIf(p);
+    vm_jumpIf(p);
     break;
 
   case op_gt:
@@ -844,28 +823,28 @@ void program_next(Program *p)
   case op_mul:
   case op_div:
   case op_mod:
-    binaryOperation(p, next);
+    vm_binaryOperation(p, next);
     break;
 
   case op_inc:
   case op_dec:
-    unaryOperation(p, next);
+    vm_unaryOperation(p, next);
     break;
 
   case op_not:
-    notOperation(p);
+    vm_notOperation(p);
     break;
 
   case op_assign:
-    assignOperation(p);
+    vm_assignOperation(p);
     break;
 
   case op_wifistatus:
-    printStationStatus(p);
+    vm_printStationStatus(p);
     break;
 
   case op_wifiap:
-    startAccessPoint(p);
+    vm_startAccessPoint(p);
     break;
 
   case op_wificonnect:
@@ -882,12 +861,12 @@ void program_next(Program *p)
 
   default:
     program_printf(p, "\n[!] Invalid operation: %02x\n", next);
-    halt(p);
+    vm_halt(p);
   }
 
   if (p->counter >= p->endOfTheProgram)
   {
-    halt(p);
+    vm_halt(p);
   }
 }
 
@@ -919,12 +898,12 @@ void program_load(Program *program, byteref _bytes, uint length)
 {
   if (program->bytes != NULL && program->endOfTheProgram < length)
   {
-    program->bytes = (string)os_realloc(program->bytes, length);
+    program->bytes = (byteref)os_realloc(program->bytes, length);
   }
 
   if (program->bytes == NULL)
   {
-    program->bytes = (string)os_zalloc(length);
+    program->bytes = (byteref)os_zalloc(length);
   }
 
   os_memcpy(program->bytes, _bytes, length);
