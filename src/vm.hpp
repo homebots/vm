@@ -309,7 +309,7 @@ void _updateSlotWithInteger(Program *p, byte slotId, uint value)
   p->slots[slotId].update(type, valueRef, true);
 }
 
-void vm_binaryOperation(Program *p, byte operation)
+void MOVE_TO_FLASH vm_binaryOperation(Program *p, byte operation)
 {
   auto target = readValue(p);
   auto a = readValue(p);
@@ -370,7 +370,7 @@ void vm_binaryOperation(Program *p, byte operation)
   program_printf(p, "Binary %d: $%d = %d\n", operation, target.toByte(), newValue);
 }
 
-void vm_unaryOperation(Program *p, byte operation)
+void MOVE_TO_FLASH vm_unaryOperation(Program *p, byte operation)
 {
   auto target = readValue(p);
   auto newValue = target.toInteger() + ((operation == op_inc) ? 1 : -1);
@@ -379,7 +379,7 @@ void vm_unaryOperation(Program *p, byte operation)
   program_printf(p, "Unary %d: $%d = %d\n", operation, target.toByte(), newValue);
 }
 
-void vm_notOperation(Program *p)
+void MOVE_TO_FLASH vm_notOperation(Program *p)
 {
   auto target = readValue(p);
   auto value = !readValue(p).toBoolean();
@@ -388,7 +388,7 @@ void vm_notOperation(Program *p)
   program_printf(p, "Not %d: %d\n", target.toByte(), value);
 }
 
-void vm_assignOperation(Program *p)
+void MOVE_TO_FLASH vm_assignOperation(Program *p)
 {
   auto target = readValue(p);
   auto value = readValue(p);
@@ -396,7 +396,7 @@ void vm_assignOperation(Program *p)
   p->slots[target.toByte()].update(value);
 }
 
-void vm_sleep(Program *p)
+void MOVE_TO_FLASH vm_sleep(Program *p)
 {
   auto time = readValue(p).toInteger();
 
@@ -405,18 +405,18 @@ void vm_sleep(Program *p)
   system_deep_sleep((uint64_t)time);
 }
 
-void vm_halt(Program *p)
+void MOVE_TO_FLASH vm_halt(Program *p)
 {
   program_printf(p, "halt\n");
   p->paused = true;
 }
 
-void vm_yield(Program *p)
+void MOVE_TO_FLASH vm_yield(Program *p)
 {
   p->delayTime = 1;
 }
 
-void vm_delay(Program *p)
+void MOVE_TO_FLASH vm_delay(Program *p)
 {
   p->delayTime = readValue(p).toInteger();
 
@@ -428,7 +428,7 @@ void vm_delay(Program *p)
   program_printf(p, "delay %d\n", p->delayTime);
 }
 
-void vm_ioInterrupt(Program *p)
+void MOVE_TO_FLASH vm_ioInterrupt(Program *p)
 {
   auto pin = readValue(p).toByte();
   auto mode = readValue(p).toByte();
@@ -440,7 +440,7 @@ void vm_ioInterrupt(Program *p)
   attachPinInterrupt(pin, (interruptCallbackHandler)&_onInterruptTrigger, (void *)p, (GPIO_INT_TYPE)mode);
 }
 
-void vm_ioInterruptToggle(Program *p)
+void MOVE_TO_FLASH vm_ioInterruptToggle(Program *p)
 {
   auto enabled = readValue(p).toBoolean();
 
@@ -455,14 +455,14 @@ void vm_ioInterruptToggle(Program *p)
   program_printf(p, "interrupts disarmed\n");
 }
 
-void vm_jumpTo(Program *p)
+void MOVE_TO_FLASH vm_jumpTo(Program *p)
 {
   auto position = readValue(p);
   p->counter = position.toInteger();
   program_printf(p, "jump to %d\n", p->counter);
 }
 
-void vm_jumpIf(Program *p)
+void MOVE_TO_FLASH vm_jumpIf(Program *p)
 {
   auto condition = readValue(p);
   auto position = readValue(p);
@@ -474,7 +474,7 @@ void vm_jumpIf(Program *p)
   program_printf(p, "jump if: %d\n", p->counter);
 }
 
-void vm_toggleDebug(Program *p)
+void MOVE_TO_FLASH vm_toggleDebug(Program *p)
 {
   auto value = readValue(p).toBoolean();
 
@@ -491,12 +491,12 @@ void vm_toggleDebug(Program *p)
   system_uart_swap();
 }
 
-void vm_printStationStatus(Program *p)
+void MOVE_TO_FLASH vm_printStationStatus(Program *p)
 {
   // TODO
 }
 
-void vm_systemInformation(Program *p)
+void MOVE_TO_FLASH vm_systemInformation(Program *p)
 {
   program_printf(p, "Chip %ld\n", system_get_chip_id());
   program_printf(p, "SDK %s\n", system_get_sdk_version());
@@ -504,7 +504,7 @@ void vm_systemInformation(Program *p)
   program_printf(p, "Free %ld bytes\n", system_get_free_heap_size());
 }
 
-void vm_dump(Program *p)
+void MOVE_TO_FLASH vm_dump(Program *p)
 {
   uint i = 0;
   program_printf(p, "\nProgram\n");
@@ -528,13 +528,13 @@ void vm_dump(Program *p)
   }
 }
 
-void vm_print(Program *p)
+void MOVE_TO_FLASH vm_print(Program *p)
 {
   auto value = readValue(p);
   _printValue(p, value);
 }
 
-void vm_declareReference(Program *p)
+void MOVE_TO_FLASH vm_declareReference(Program *p)
 {
   auto slotId = readValue(p).toByte();
   auto value = readValue(p);
@@ -546,7 +546,7 @@ void vm_declareReference(Program *p)
   program_printf(p, "\n");
 }
 
-void vm_readFromMemory(Program *p)
+void MOVE_TO_FLASH vm_readFromMemory(Program *p)
 {
   auto slotId = readValue(p).toByte();
   auto address = (void *)readValue(p).toInteger();
@@ -568,7 +568,7 @@ void vm_readFromMemory(Program *p)
   p->slots[slotId].update(vt_address, address);
 }
 
-void vm_writeToMemory(Program *p)
+void MOVE_TO_FLASH vm_writeToMemory(Program *p)
 {
   auto address = readValue(p).toInteger();
   auto value = readValue(p);
@@ -595,7 +595,7 @@ void vm_writeToMemory(Program *p)
   }
 }
 
-void vm_ioMode(Program *p)
+void MOVE_TO_FLASH vm_ioMode(Program *p)
 {
   auto pin = readValue(p).toByte();
   auto value = readValue(p).toByte();
@@ -604,7 +604,7 @@ void vm_ioMode(Program *p)
   pinMode(pin, (PinMode)value);
 }
 
-void vm_ioType(Program *p)
+void MOVE_TO_FLASH vm_ioType(Program *p)
 {
   auto pin = readValue(p).toByte();
   auto value = readValue(p).toByte();
@@ -613,7 +613,7 @@ void vm_ioType(Program *p)
   pinType(pin, value);
 }
 
-void vm_ioWrite(Program *p)
+void MOVE_TO_FLASH vm_ioWrite(Program *p)
 {
   auto pin = readValue(p).toByte();
   auto value = readValue(p).toBoolean();
@@ -622,7 +622,7 @@ void vm_ioWrite(Program *p)
   pinWrite(pin, (bool)value);
 }
 
-void vm_ioRead(Program *p)
+void MOVE_TO_FLASH vm_ioRead(Program *p)
 {
   auto target = readValue(p);
   auto pin = readValue(p).toByte();
@@ -632,7 +632,7 @@ void vm_ioRead(Program *p)
   program_printf(p, "io read %d, %d\n", pin, pinValue);
 }
 
-void vm_ioAllOut(Program *p)
+void MOVE_TO_FLASH vm_ioAllOut(Program *p)
 {
   program_printf(p, "io all out\n");
   pinType(0, 0);
@@ -645,13 +645,13 @@ void vm_ioAllOut(Program *p)
   pinMode(3, PinOutput);
 }
 
-void vm_startAccessPoint(Program *p)
+void MOVE_TO_FLASH vm_startAccessPoint(Program *p)
 {
   program_printf(p, "startAccessPoint\n");
   wifi.startAccessPoint();
 }
 
-void wifiConnect(Program *p)
+void MOVE_TO_FLASH vm_wifiConnect(Program *p)
 {
   auto ssid = readValue(p).toString();
   auto password = readValue(p);
@@ -668,52 +668,61 @@ void wifiConnect(Program *p)
   wifi.connectTo((const char *)ssid, (const char *)NULL);
 }
 
-void wifiDisconnect(Program *p)
+void MOVE_TO_FLASH vm_wifiDisconnect(Program *p)
 {
   wifi.disconnect();
 }
 
-void wifiList(Program *p)
+void MOVE_TO_FLASH vm_wifiList(Program *p)
 {
   // TODO
 }
 
-void vm_i2csetup(Program *p)
+void MOVE_TO_FLASH vm_i2csetup(Program *p)
 {
   auto dataPin = readValue(p).toByte();
   auto clockPin = readValue(p).toByte();
 
   i2c_setup(dataPin, clockPin);
-  program_printf(p, "i2c setup SDA=%d SCL=%d\n", dataPin, clockPin);
+  program_printf(p, "i2c setup SDA %d, SCK %d\n", dataPin, clockPin);
 }
 
-void vm_i2cstart(Program *p)
+void MOVE_TO_FLASH vm_i2cstart(Program *p)
 {
   program_printf(p, "i2c start\n");
   i2c_start();
 }
 
-void vm_i2cstop(Program *p)
+void MOVE_TO_FLASH vm_i2cstop(Program *p)
 {
   program_printf(p, "i2c stop\n");
   i2c_stop();
 }
 
-void vm_i2cwrite(Program *p)
+void MOVE_TO_FLASH vm_i2cwrite(Program *p)
 {
   auto byte = readValue(p).toByte();
   program_printf(p, "i2c write %d\n", byte);
   i2c_writeByteAndAck(byte);
 }
 
-void vm_i2cread(Program *p)
+void MOVE_TO_FLASH vm_i2cfind(Program *p)
+{
+  auto target = readValue(p);
+  void *v = os_zalloc(sizeof(byte));
+  *(byte *)v = i2c_findDevice();
+  p->slots[target.toByte()].update(vt_byte, v, true);
+  program_printf(p, "i2c find %d\n", v);
+}
+
+void MOVE_TO_FLASH vm_i2cread(Program *p)
 {
   auto target = readValue(p);
   byte value = i2c_readByte();
   void *v = os_zalloc(sizeof(byte));
   *(byte *)v = value;
-  p->slots[target.toByte()].update(vt_byte, &v, true);
-  program_printf(p, "i2c read %d\n", value);
+  p->slots[target.toByte()].update(vt_byte, v, true);
+  program_printf(p, "i2cread %d\n", value);
 }
 
 void program_next(Program *p)
@@ -848,15 +857,40 @@ void program_next(Program *p)
     break;
 
   case op_wificonnect:
-    wifiConnect(p);
+    vm_wifiConnect(p);
     break;
 
   case op_wifidisconnect:
-    wifiDisconnect(p);
+    vm_wifiDisconnect(p);
     break;
 
   case op_wifilist:
-    wifiList(p);
+    vm_wifiList(p);
+    break;
+
+  case op_i2csetup:
+    vm_i2csetup(p);
+    break;
+  case op_i2cstart:
+    vm_i2cstart(p);
+    break;
+  case op_i2cstop:
+    vm_i2cstop(p);
+    break;
+  case op_i2cwrite:
+    vm_i2cwrite(p);
+    break;
+  case op_i2cread:
+    vm_i2cread(p);
+    break;
+  // case op_i2csetack:
+  //   vm_i2c_setack(p);
+  //   break;
+  // case op_i2cgetack:
+  //   vm_i2c_getack(p);
+  //   break;
+  case op_i2cfind:
+    vm_i2cfind(p);
     break;
 
   default:

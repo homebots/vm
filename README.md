@@ -196,14 +196,16 @@ Example:
 
 ```esp
 // declare a variable of type `integer` at slot `0` with initial value `1`:
-// declare = 0x0d
-// 0x02 is vtype "byte"
-// 0x05 is vtype "int"
-0d 02 00 05 01 00 00 00
+//   declare = 0x32
+//   0x02 is type "Byte"
+//   0x00 is the value
+//   0x05 is type "Integer"
+//   0x01 0x00 0x00 0x00 is the value
+32 02 00 05 01 00 00 00
 
 // store the unsigned integer 1000 in the memory slot
 // assign = 0x31
-31 02 00 05 e8 03 00 00,
+31 02 00 05 e8 03 00 00
 
 // jump to the beginning of the program
 // jump = 0x0a
