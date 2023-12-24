@@ -22,12 +22,12 @@ static struct espconn *conn;
 
 void checkAgain()
 {
-  os_timer_arm(&wifiTimer, 5000, 0);
+  os_timer_disarm(&wifiTimer);
+  os_timer_arm(&wifiTimer, 10000, 0);
 }
 
 void checkConnection(void *arg)
 {
-  espconn *conn = (espconn *)arg;
   if (!wifi.isConnected())
   {
     TRACE("wifi off\n");
@@ -36,10 +36,16 @@ void checkConnection(void *arg)
       espconn_disconnect(conn);
     }
 
-    auto status = wifi_station_get_connect_status();
-    TRACE("wifi state: %d\n", status);
-    if (status != STATION_CONNECTING && status != STATION_WRONG_PASSWORD)
+    uint8 status = wifi_station_get_connect_status();
+    if (status == STATION_WRONG_PASSWORD)
     {
+      TRACE("wrong password\n");
+      return;
+    }
+
+    if (status != STATION_CONNECTING)
+    {
+      TRACE("connect to '%s'/'%s'\n", WIFI_SSID, WIFI_PASSWORD);
       wifi.connectTo(WIFI_SSID, WIFI_PASSWORD);
     }
 
