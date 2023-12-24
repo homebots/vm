@@ -37,6 +37,7 @@ void checkConnection(void *arg)
     }
 
     auto status = wifi_station_get_connect_status();
+    TRACE("wifi state: %d\n", status);
     if (status != STATION_CONNECTING && status != STATION_WRONG_PASSWORD)
     {
       wifi.connectTo(WIFI_SSID, WIFI_PASSWORD);
