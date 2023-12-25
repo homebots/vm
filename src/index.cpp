@@ -95,17 +95,21 @@ void checkConnection(void *arg)
   }
 }
 
-void onReceive(void *arg, char *data, unsigned short length)
+void printBuffer(char *data, unsigned short length)
 {
-  TRACE("Received %d bytes\n", length);
   int i = 0;
 
   while (i < length)
   {
     os_printf("%02x", data[i++]);
   }
+}
 
-  i = 0;
+void onReceive(void *arg, char *data, unsigned short length)
+{
+  TRACE("Received %d bytes\n", length);
+
+  int i = 0;
   struct espconn *conn = (espconn *)arg;
   const char *OK = "HTTP/1.1 200 OK\r\n\r\nOK\r\n";
   const char *notOK = "HTTP/1.1 400 Bad payload\r\n\r\n";
@@ -128,10 +132,12 @@ void onReceive(void *arg, char *data, unsigned short length)
       {
         i += 4;
         os_printf("Program at %d\n", i);
+        printBuffer(data + i, length - i);
         program_load(&program, (unsigned char *)data + i, length - i);
         os_printf("Program loaded\n");
         program_start(&program);
         espconn_send(conn, (uint8 *)OK, strlen(OK));
+        espconn_disconnect(conn);
         return;
       }
 
@@ -145,14 +151,14 @@ void onReceive(void *arg, char *data, unsigned short length)
 
 void onSend(char *data, int length)
 {
-
-  espconn_send(conn, (uint8 *)data, length);
+  os_printf("send %d bytes\n", length);
+  printBuffer(data, length);
+  // espconn_send(conn, (uint8 *)data, length);
 }
 
 void onDisconnect(void *arg)
 {
   TRACE("Client disconnected\n");
-  struct espconn *conn = (espconn *)arg;
   espconn_accept(conn);
   checkAgain();
 }
