@@ -19,6 +19,9 @@
 static Program program;
 static os_timer_t wifiTimer;
 static struct espconn *conn;
+static const char *OK = "HTTP/1.1 200 OK\r\n\r\nOK\r\n";
+static const char *notOK = "HTTP/1.1 400 Bad payload\r\n\r\n";
+static const char separator[4] = {0x0d, 0x0a, 0x0d, 0x0a};
 
 void checkAgain()
 {
@@ -103,49 +106,52 @@ void printBuffer(char *data, unsigned short length)
   {
     os_printf("%02x", data[i++]);
   }
+
+  os_printf("<<END\n");
 }
 
 void onReceive(void *arg, char *data, unsigned short length)
 {
   TRACE("Received %d bytes\n", length);
-
   int i = 0;
-  struct espconn *conn = (espconn *)arg;
-  const char *OK = "HTTP/1.1 200 OK\r\n\r\nOK\r\n";
-  const char *notOK = "HTTP/1.1 400 Bad payload\r\n\r\n";
-  const char separator[4] = {0x0d, 0x0a, 0x0d, 0x0a};
 
   if (strncmp(data, "GET", 3) == 0)
   {
+    TRACE("Status");
     espconn_send(conn, (uint8 *)OK, strlen(OK));
+    espconn_disconnect(conn);
     vm_systemInformation(&program);
     vm_dump(&program);
-    espconn_disconnect(conn);
     return;
   }
 
-  if (strncmp(data, "POST", 4) == 0)
+  if (strncmp(data, "POST", 4) != 0)
   {
-    while (i < length)
-    {
-      if (data[i] == 0x0d && strncmp(data + i, separator, 4) == 0)
-      {
-        i += 4;
-        os_printf("Program at %d\n", i);
-        printBuffer(data + i, length - i);
-        program_load(&program, (unsigned char *)data + i, length - i);
-        os_printf("Program loaded\n");
-        program_start(&program);
-        espconn_send(conn, (uint8 *)OK, strlen(OK));
-        espconn_disconnect(conn);
-        return;
-      }
-
-      i++;
-    }
+    espconn_send(conn, (uint8 *)notOK, strlen(notOK));
+    espconn_disconnect(conn);
   }
 
-  espconn_send(conn, (uint8 *)notOK, strlen(notOK));
+  // skip headers
+  while (i < length)
+  {
+    if (data[i] == 0x0d && strncmp(data + i, separator, 4) == 0)
+    {
+      i += 4;
+      break;
+    }
+
+    i++;
+  }
+
+  if (i < length)
+  {
+    os_printf("Program found at %d\n", i);
+    printBuffer(data + i, length - i);
+    program_load(&program, (unsigned char *)data + i, length - i);
+    program_start(&program);
+  }
+
+  espconn_send(conn, (uint8 *)OK, strlen(OK));
   espconn_disconnect(conn);
 }
 
@@ -153,7 +159,11 @@ void onSend(char *data, int length)
 {
   os_printf("send %d bytes\n", length);
   printBuffer(data, length);
-  // espconn_send(conn, (uint8 *)data, length);
+
+  if (conn->state == ESPCONN_CONNECT)
+  {
+    espconn_send(conn, (uint8 *)data, length);
+  }
 }
 
 void onDisconnect(void *arg)
