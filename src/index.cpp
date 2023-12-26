@@ -19,8 +19,8 @@
 static Program program;
 static os_timer_t wifiTimer;
 static struct espconn *conn;
-static const char *OK = "HTTP/1.1 200 OK\r\n\r\nOK\r\n";
-static const char *notOK = "HTTP/1.1 400 Bad payload\r\n\r\n";
+static const char *httpOK = "HTTP/1.1 200 OK\r\n\r\nOK\r\n";
+static const char *httpNotOK = "HTTP/1.1 400 Bad payload\r\n\r\n";
 static const char separator[4] = {0x0d, 0x0a, 0x0d, 0x0a};
 
 void checkAgain()
@@ -118,7 +118,7 @@ void onReceive(void *arg, char *data, unsigned short length)
   if (strncmp(data, "GET", 3) == 0)
   {
     TRACE("Status");
-    espconn_send(conn, (uint8 *)OK, strlen(OK));
+    espconn_send(conn, (uint8 *)httpOK, strlen(httpOK));
     espconn_disconnect(conn);
     vm_systemInformation(&program);
     vm_dump(&program);
@@ -127,7 +127,7 @@ void onReceive(void *arg, char *data, unsigned short length)
 
   if (strncmp(data, "POST", 4) != 0)
   {
-    espconn_send(conn, (uint8 *)notOK, strlen(notOK));
+    espconn_send(conn, (uint8 *)httpNotOK, strlen(httpNotOK));
     espconn_disconnect(conn);
   }
 
@@ -151,7 +151,7 @@ void onReceive(void *arg, char *data, unsigned short length)
     program_start(&program);
   }
 
-  espconn_send(conn, (uint8 *)OK, strlen(OK));
+  espconn_send(conn, (uint8 *)httpOK, strlen(httpOK));
   espconn_disconnect(conn);
 }
 

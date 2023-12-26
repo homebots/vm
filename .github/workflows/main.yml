@@ -12,11 +12,11 @@ jobs:
 
       - name: Build firmware
         run: |
-          mkdir firmware
-          chmod a+w firmware
+          mkdir firmware build
+          chmod a+w firmware build
           make build
           make asm
-          mv build/*.asm firmware/
+          cp build/*.asm firmware/
         env:
           WIFI_SSID: ${{ secrets.WIFI_SSID }}
           WIFI_PASSWORD: ${{ secrets.WIFI_PASSWORD }}
