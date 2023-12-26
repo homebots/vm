@@ -601,7 +601,11 @@ void MOVE_TO_FLASH vm_ioMode(Program *p)
   auto value = readValue(p).toByte();
 
   program_printf(p, "io mode %d %d\n", pin, value);
-  pinMode(pin, (PinMode)value);
+
+  if (value >= 0 && value <= 3)
+  {
+    pinMode(pin, (PinMode)value);
+  }
 }
 
 void MOVE_TO_FLASH vm_ioType(Program *p)
@@ -610,7 +614,10 @@ void MOVE_TO_FLASH vm_ioType(Program *p)
   auto value = readValue(p).toByte();
 
   program_printf(p, "io type %d %d\n", pin, value);
-  pinType(pin, value);
+  if (value >= 0 && value <= 4)
+  {
+    pinType(pin, value);
+  }
 }
 
 void MOVE_TO_FLASH vm_ioWrite(Program *p)
