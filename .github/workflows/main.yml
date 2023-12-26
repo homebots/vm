@@ -11,7 +11,7 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Build firmware
-        run: make build
+        run: make build && make asm && cp build/*.asm firmware/
         env:
           WIFI_SSID: ${{ secrets.WIFI_SSID }}
           WIFI_PASSWORD: ${{ secrets.WIFI_PASSWORD }}
@@ -68,13 +68,18 @@ jobs:
         run: |
           set -e
           curl -sS -X POST ${{ secrets.ESP_LIVE_URL }}/prepare
+          echo Upload
+          ls firmware/
 
           for i in $(ls firmware -1 | grep '0x'); do
-            stat firmware/$i
             curl -sS ${{ secrets.ESP_LIVE_URL }}/upload/$i --data-binary @firmware/$i;
           done
 
+          echo Flash
           curl -sS -X POST ${{ secrets.ESP_LIVE_URL }}/flash
+          echo Reset
           curl -sS -X POST ${{ secrets.ESP_LIVE_URL }}/reset
           sleep 5
+          echo Reconnect
           curl -sS -X POST ${{ secrets.ESP_LIVE_URL }}/connect
+          echo Completed
