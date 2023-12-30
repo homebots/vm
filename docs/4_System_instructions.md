@@ -154,9 +154,7 @@ This document provides detailed information on each system instruction supported
 - **Encoding**: `0x0f 0x00 0x01`
 - **Equivalent Pseudocode**: `def abc:`
 - **Description**: Defines the start of a function.
-- **Example
-
-**:
+- **Example**:
   ```
   def abc:
   // Function body
