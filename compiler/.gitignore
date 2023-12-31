@@ -1,0 +1,9 @@
+node_modules/
+coverage/
+cli/
+.vscode/
+tmp/
+dist/
+grammar.out
+grammar.pegjs
+*.bin

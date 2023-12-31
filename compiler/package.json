@@ -1,0 +1,50 @@
+{
+  "name": "@homebots/espresso-compiler",
+  "version": "0.0.0",
+  "description": "Compiler for Espresso language used by Homebots VM",
+  "main": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "bin": {
+    "espc": "./dist/cli.mjs"
+  },
+  "type": "module",
+  "scripts": {
+    "test": "jest",
+    "ci": "npm ci && npm run build && npm run lint && npm run test",
+    "build": "rm -rf dist/ && npm run grammar && npm run types && npm run package && npm run cli",
+    "grammar": "sh update-grammar.sh",
+    "types": "tsc --declaration -p tsconfig.build.json",
+    "package": "ncc build src/index.mts --minify --no-cache --target es2022",
+    "cli": "ncc build dist/cli.mjs -o cli --minify --no-cache --target es2022",
+    "lint": "eslint --quiet src/**/*.mts --ignore-pattern src/compiler/parser.mts",
+    "tdd": "jest --watchAll"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/homebots/vm.git"
+  },
+  "keywords": [
+    "homebots"
+  ],
+  "author": "Darlan Alves <me@darlanalv.es>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/homebots/vm/issues"
+  },
+  "homepage": "https://github.com/homebots/vm#readme",
+  "prettier": "@cloud-cli/prettier-config",
+  "devDependencies": {
+    "@cloud-cli/jest-config": "^1.0.0",
+    "@cloud-cli/prettier-config": "^1.0.0",
+    "@cloud-cli/typescript-config": "^1.0.1",
+    "@typescript-eslint/eslint-plugin": "^6.16.0",
+    "@typescript-eslint/parser": "^6.16.0",
+    "@vercel/ncc": "^0.36.1",
+    "eslint": "^8.1.0",
+    "ts-node": "^10.0.0",
+    "ts-pegjs": "^4.2.1"
+  }
+}

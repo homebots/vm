@@ -1,0 +1,13 @@
+.github/
+src/
+*.spec.d.mts
+*.spec.mjs
+coverage/
+examples/
+.gitignore
+.eslintrc.cjs
+.prettierrc
+jest*
+peg-config.json
+tsconfig*
+update-grammar.sh
