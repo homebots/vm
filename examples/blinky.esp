@@ -1,0 +1,8 @@
+```
+def begin
+  not       #0, #0,
+  iowrite   pin 0, #0,
+  iowrite   pin 2, #0,
+  delay     2000
+  begin()
+```

@@ -4,7 +4,16 @@ on:
   - workflow_dispatch
 
 jobs:
-  build:
+  compiler:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Build compiler
+        run: echo true
+
+  firmware:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -12,8 +21,7 @@ jobs:
 
       - name: Build firmware
         run: |
-          mkdir firmware build
-          chmod a+w firmware build
+          cd vm
           make build
           make asm
           cp build/*.asm firmware/
@@ -25,11 +33,11 @@ jobs:
         uses: actions/upload-artifact@v2
         with:
           name: firmware
-          path: firmware/
+          path: vm/firmware/
 
   release:
     runs-on: ubuntu-latest
-    needs: [build]
+    needs: [firmware]
     permissions:
       contents: write
       packages: write
@@ -41,11 +49,11 @@ jobs:
         uses: actions/download-artifact@v2
         with:
           name: firmware
-          path: firmware/
+          path: vm/firmware/
 
       - name: Prepare for release
         run: |
-          tar czf firmware.tgz firmware/
+          tar czf firmware.tgz vm/firmware/
           ls -al
 
       - name: Create release
@@ -56,28 +64,28 @@ jobs:
           version=$(echo $vsha | cut -b -5)
           date=$(date -Idate)
           echo $version
-
           gh release create "v1-$version" --latest --title "Release $version" --notes "New firmware version from $date. See flash instructions [on README.md](https://github.com/homebots/vm)" firmware.tgz
 
   flash:
     runs-on: ubuntu-latest
-    needs: [build]
+    needs: [firmware]
     steps:
       - name: Download firmware
         uses: actions/download-artifact@v2
         with:
           name: firmware
-          path: firmware/
+          path: vm/firmware/
 
       - name: Upload to ESP flash
         run: |
           set -e
           curl -sS -X POST ${{ secrets.ESP_LIVE_URL }}/prepare
           echo Upload
-          ls firmware/
 
-          for i in $(ls firmware -1 | grep '0x'); do
-            curl -sS ${{ secrets.ESP_LIVE_URL }}/upload/$i --data-binary @firmware/$i;
+          ls vm/firmware/
+
+          for i in $(ls vm/firmware/ -1 | grep '0x'); do
+            curl -sS ${{ secrets.ESP_LIVE_URL }}/upload/$i --data-binary @vm/firmware/$i;
           done
 
           echo Flash

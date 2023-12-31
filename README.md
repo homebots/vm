@@ -1,16 +1,14 @@
-# Homebots VM
+# Espresso Machine
 
 Virtual Machine to execute programs on an esp8266 chip.
 
-## Build and flash
+## Firmware
 
-### From prebuilt binaries
+See [/vm](vm/) for firmware sources. Go to [releases](https://github.com/homebots/vm/releases) to download pre-built binaries.
 
-See [releases](https://github.com/homebots/vm/releases).
+## Compiler
 
-The firmwares from releases are separated into two parts.
-Each file has the flash address in its name, like `0x10000.bin`.
-Use that to correctly flash the firmware parts.
+See [/compiler](compiler/) for a script to convert ESP code into an executable binary.
 
 Command example:
 

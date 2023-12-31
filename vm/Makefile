@@ -5,6 +5,8 @@ DOCKER_IMAGE    ?= ghcr.io/homebots/xtensa-gcc:latest
 .PHONY: build flash asm sym
 
 build:
+	mkdir -p build/ firmware/
+	chmod a+w firmware build
 	docker run --rm -e VERBOSE -e LIBS -e WIFI_SSID -e WIFI_PASSWORD -v$$(pwd):/home/project:rw $(DOCKER_IMAGE) make
 
 flash:
