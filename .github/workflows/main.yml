@@ -4,7 +4,7 @@ on:
   - workflow_dispatch
 
 jobs:
-  compiler:
+  build-compiler:
     uses: homebots/workflows/.github/workflows/node-build-release.yml@master
     with:
       path: compiler
@@ -13,7 +13,8 @@ jobs:
       NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  firmware:
+  build-firmware:
+    needs: [build-compiler]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -35,9 +36,9 @@ jobs:
           name: firmware
           path: vm/firmware/
 
-  release:
+  release-firmware:
     runs-on: ubuntu-latest
-    needs: [firmware, compiler]
+    needs: [build-firmware]
     permissions:
       contents: write
       packages: write
@@ -68,7 +69,7 @@ jobs:
 
   flash:
     runs-on: ubuntu-latest
-    needs: [firmware]
+    needs: [build-firmware]
     steps:
       - name: Download firmware
         uses: actions/download-artifact@v3
