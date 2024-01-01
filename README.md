@@ -36,3 +36,4 @@ See the [`Makefile`](Makefile) for more details on how each command works.
 ## Documentation
 
 See [docs folder](docs/) for instructions, concepts and examples.
+
