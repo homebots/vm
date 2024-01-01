@@ -1,7 +1,9 @@
 #define WITH_DEBUG
 #define SERIAL_SPEED 115200
+#define __CHIP_ESP8266__
 
 #include "homebots.h"
+#include "esp8266.hpp"
 #include "vm.hpp"
 
 // WIFI_SSID and WIFI_SSID should be defined as environment variables
@@ -147,8 +149,8 @@ void onReceive(void *arg, char *data, unsigned short length)
   {
     os_printf("Program found at %d\n", i);
     printBuffer(data + i, length - i);
-    program_load(&program, (unsigned char *)data + i, length - i);
-    program_start(&program);
+    vm_load(&program, (unsigned char *)data + i, length - i);
+    vm_start(&program);
   }
 
   espconn_send(conn, (uint8 *)httpOK, strlen(httpOK));
