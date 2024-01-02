@@ -1,5 +1,7 @@
-firmware/
-build/
 .vscode
 .DS_Store
+firmware/
+build/
 tmp/
+a.out
+bin/

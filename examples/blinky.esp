@@ -1,0 +1,13 @@
+```
+// blink pins 0 and 2 every 2 seconds
+
+def begin
+  not       #0, #0,
+  iowrite   pin 0, #0,
+  iowrite   pin 2, #0,
+  delay     2000
+  begin()
+
+
+begin()
+```

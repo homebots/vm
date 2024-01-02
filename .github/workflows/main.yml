@@ -4,7 +4,16 @@ on:
   - workflow_dispatch
 
 jobs:
-  build:
+  compiler:
+    uses: homebots/workflows/.github/workflows/node-build-release.yml@master
+    with:
+      path: compiler
+      branches: v1
+    secrets:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  firmware:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -12,8 +21,6 @@ jobs:
 
       - name: Build firmware
         run: |
-          mkdir firmware build
-          chmod a+w firmware build
           make build
           make asm
           cp build/*.asm firmware/
@@ -22,14 +29,15 @@ jobs:
           WIFI_PASSWORD: ${{ secrets.WIFI_PASSWORD }}
 
       - name: Upload firmware
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: firmware
           path: firmware/
 
   release:
     runs-on: ubuntu-latest
-    needs: [build]
+    needs: [firmware]
+    if: github.ref == 'refs/heads/v1'
     permissions:
       contents: write
       packages: write
@@ -38,7 +46,7 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Download firmware
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: firmware
           path: firmware/
@@ -56,15 +64,14 @@ jobs:
           version=$(echo $vsha | cut -b -5)
           date=$(date -Idate)
           echo $version
-
           gh release create "v1-$version" --latest --title "Release $version" --notes "New firmware version from $date. See flash instructions [on README.md](https://github.com/homebots/vm)" firmware.tgz
 
   flash:
     runs-on: ubuntu-latest
-    needs: [build]
+    needs: [release]
     steps:
       - name: Download firmware
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: firmware
           path: firmware/
@@ -74,9 +81,10 @@ jobs:
           set -e
           curl -sS -X POST ${{ secrets.ESP_LIVE_URL }}/prepare
           echo Upload
+
           ls firmware/
 
-          for i in $(ls firmware -1 | grep '0x'); do
+          for i in $(ls firmware/ -1 | grep '0x'); do
             curl -sS ${{ secrets.ESP_LIVE_URL }}/upload/$i --data-binary @firmware/$i;
           done
 
