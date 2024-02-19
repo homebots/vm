@@ -335,21 +335,21 @@ void MOVE_TO_FLASH vm_dump(Program *p)
   _printf(p, "\nProgram\n");
   while (i < p->endOfTheProgram)
   {
-    _printf(p, "%02x ", *p->bytes[i++]);
+    _printf(p, "%02x ", p->bytes[i++]);
   }
 
   _printf(p, "\nSlots\n");
   for (i = 0; i < MAX_SLOTS; i++)
   {
     _printf(p, "%d: '", i);
-    _printValue(p, *p->slots[i]);
+    _printValue(p, p->slots[i]);
     _printf(p, "'\n");
   }
 
   _printf(p, "\nInterrupts\n");
   for (i = 0; i < NUMBER_OF_PINS; i++)
   {
-    _printf(p, "%d: %d\n", i, *p->interruptHandlers[i]);
+    _printf(p, "%d: %d\n", i, p->interruptHandlers[i]);
   }
 }
 
