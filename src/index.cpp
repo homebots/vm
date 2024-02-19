@@ -103,13 +103,13 @@ void checkConnection(void *arg)
 void printBuffer(char *data, unsigned short length)
 {
   int i = 0;
-  os_printf("\nBUFFER\n");
+  TRACE("\nBUFFER\n");
   while (i < length)
   {
-    os_printf("%02x ", data[i++]);
+    TRACE("%02x ", data[i++]);
   }
 
-  os_printf("\n<<END\n");
+  TRACE("\n<<END\n");
 }
 
 void onReceive(void *arg, char *data, unsigned short length)
@@ -121,9 +121,9 @@ void onReceive(void *arg, char *data, unsigned short length)
   {
     TRACE("Status");
     espconn_send(conn, (uint8 *)httpOK, strlen(httpOK));
-    // espconn_disconnect(conn);
-    // vm_systemInformation(&program);
-    // vm_dump(&program);
+    vm_systemInformation(&program);
+    vm_dump(&program);
+    espconn_disconnect(conn);
     return;
   }
 
@@ -147,10 +147,10 @@ void onReceive(void *arg, char *data, unsigned short length)
 
   if (i < length)
   {
-    os_printf("Program found at %d\n", i);
-    printBuffer(data + i, length - i);
+    // TRACE("Program found at %d\n", i);
+    // printBuffer(data + i, length - i);
     espconn_send(conn, (uint8 *)httpOK, strlen(httpOK));
-    espconn_disconnect(conn);
+    // espconn_disconnect(conn);
     vm_load(&program, (unsigned char *)data + i, length - i);
     return;
   }
@@ -161,8 +161,8 @@ void onReceive(void *arg, char *data, unsigned short length)
 
 void onSend(char *data, int length)
 {
-  os_printf("send %d bytes\n", length);
-  os_printf("conn state: %d\n", conn->state);
+  TRACE("send %d bytes\n", length);
+  TRACE("conn state: %d\n", conn->state);
   printBuffer(data, length);
   if (conn->state == ESPCONN_CONNECT)
   {
@@ -203,7 +203,7 @@ void setup()
   wifi.disconnect();
   wifi.stopAccessPoint();
   wifi.startAccessPoint();
-  os_printf("Connecting to %s : %s\n", WIFI_SSID, WIFI_PASSWORD);
+  TRACE("Connecting to %s : %s\n", WIFI_SSID, WIFI_PASSWORD);
   wifi.connectTo(WIFI_SSID, WIFI_PASSWORD);
 
   conn = (struct espconn *)os_zalloc(sizeof(struct espconn));
