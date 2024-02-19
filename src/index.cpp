@@ -103,13 +103,13 @@ void checkConnection(void *arg)
 void printBuffer(char *data, unsigned short length)
 {
   int i = 0;
-
+  os_printf("\nBUFFER\n");
   while (i < length)
   {
-    os_printf("%02x", data[i++]);
+    os_printf("%02x ", data[i++]);
   }
 
-  os_printf("<<END\n");
+  os_printf("\n<<END\n");
 }
 
 void onReceive(void *arg, char *data, unsigned short length)
@@ -150,6 +150,7 @@ void onReceive(void *arg, char *data, unsigned short length)
     os_printf("Program found at %d\n", i);
     printBuffer(data + i, length - i);
     espconn_send(conn, (uint8 *)httpOK, strlen(httpOK));
+    espconn_disconnect(conn);
     vm_load(&program, (unsigned char *)data + i, length - i);
     return;
   }
