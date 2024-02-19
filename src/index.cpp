@@ -149,10 +149,12 @@ void onReceive(void *arg, char *data, unsigned short length)
   {
     os_printf("Program found at %d\n", i);
     printBuffer(data + i, length - i);
+    espconn_send(conn, (uint8 *)httpOK, strlen(httpOK));
     vm_load(&program, (unsigned char *)data + i, length - i);
+    return;
   }
 
-  espconn_send(conn, (uint8 *)httpOK, strlen(httpOK));
+  espconn_send(conn, (uint8 *)httpNotOK, strlen(httpNotOK));
   espconn_disconnect(conn);
 }
 
@@ -164,6 +166,13 @@ void onSend(char *data, int length)
   if (conn->state == ESPCONN_CONNECT)
   {
     espconn_send(conn, (uint8 *)data, length);
+  }
+}
+
+void onHalt() {
+  if (conn->state == ESPCONN_CONNECT)
+  {
+    espconn_disconnect(conn);
   }
 }
 
@@ -211,6 +220,7 @@ void setup()
   espconn_accept(conn);
 
   program.onSend = &onSend;
+  program.onHalt = &onHalt;
 
   os_timer_setfn(&wifiTimer, &checkConnection, conn);
   checkAgain();

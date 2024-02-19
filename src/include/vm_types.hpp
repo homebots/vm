@@ -115,6 +115,7 @@ public:
 };
 
 typedef void (*send_callback)(char *, int);
+typedef void (*halt_callback)();
 
 class Program
 {
@@ -137,4 +138,5 @@ public:
   uint interruptHandlers[NUMBER_OF_PINS];
   bool paused = false;
   send_callback onSend = 0;
+  halt_callback onHalt = 0;
 };

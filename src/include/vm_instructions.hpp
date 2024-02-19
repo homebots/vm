@@ -231,6 +231,13 @@ void MOVE_TO_FLASH vm_halt(Program *p)
 {
   _printf(p, "halt\n");
   p->paused = true;
+
+  if (p->onHalt == nullptr)
+  {
+    return;
+  }
+
+  p->onHalt();
 }
 
 void MOVE_TO_FLASH vm_yield(Program *p)

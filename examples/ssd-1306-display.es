@@ -1,0 +1,214 @@
+int screenWidth = 128
+int screenHeight = 64
+
+byte WRITE_COMMAND           = 00h
+byte WRITE_DATA              = 40h
+
+byte SET_LOW_COLUMN          = 00h
+byte USE_EXTERNAL_VCC        = 01h
+byte USE_INTERNAL_VCC        = 02h
+byte SET_HIGH_COLUMN         = 10h
+byte SET_MEMORY_MODE         = 20h
+byte SET_COLUMN_ADDRESS      = 21h
+byte SET_PAGE_ADDRRESS       = 22h
+byte SET_FADE_BLINK          = 23h
+byte RIGHT_HSCROLL           = 26h
+byte LEFT_HSCROLL            = 27h
+byte RIGHT_DIAGSCROLL        = 29h
+byte LEFT_DIAGSCROLL         = 2ah
+byte DEACTIVATE_SCROLL       = 2eh
+byte ACTIVATE_SCROLL         = 2fh
+byte SET_START_LINE          = 40h
+byte SET_CONTRAST            = 81h
+byte CHARGE_PUMP             = 8dh
+byte X_MAP_NORMAL            = a0h
+byte X_MAP_INVERTED          = a1h
+byte SET_VSCROLL_AREA        = a3h
+byte DISPLAY_SHOW_MEMORY     = a4h
+byte DISPLAY_ALL_ON          = a5h
+byte NORMAL_DISPLAY          = a6h
+byte INVERTED_DISPLAY        = a7h
+byte SET_MULTIPLEX           = a8h
+byte DISPLAY_OFF             = aeh
+byte DISPLAY_ON              = afh
+byte PAGE_ADDRESSING_START   = b0h
+byte COM_INCREMENTAL         = c0h
+byte COM_DECREMENTAL         = c8h
+byte SET_DISPLAY_OFFSET      = d3h
+byte SET_CLOCK_DIVIDER       = d5h
+byte SET_ZOOM                = d6h
+byte SET_PRECHARGE           = d9h
+byte SET_COM_PINS            = dah
+byte SET_VCOM_DETECT         = dbh
+byte NOP                     = e3h
+byte SELECT_PAGE             = b0h
+
+int is128_64 = screenHeight == 64;
+
+// some display models need extra padding bytes after a page buffer
+int lineDrift = is128_64 ? 4 : 0
+
+buffer data = [
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 C0 80 00 00 00 00 00 00 00 06
+0A 05 0D 01 01 03 87 FE FE FC F8 F0 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 80 80 80 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 80 C0 C0 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 06 0E
+08 0C 0C 0C 0E 0F 0F 07 07 03 03 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 80 E0 30
+98 DE E6 E7 F7 D7 D6 56 56 D7 D7 5F DF 3F 3F 2F
+9F D7 DF 6F 6B 6B 7F F7 F3 F3 E0 EC 98 30 E0 80
+00 00 00 00 00 00 00 00 00 00 80 80 60 70 70 60
+40 60 E0 E0 E0 E0 E0 E0 E0 C0 C0 E0 F0 E0 40 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 03 FB E0
+DF B1 EF 5F B9 B0 A0 E6 6E 2E B6 B9 9F AF A0 A7
+BF 99 B6 B6 A6 A6 B0 B0 A9 DF CF F0 7F 77 FD 01
+80 80 80 00 00 00 00 08 EE B3 7D BE 7F C7 87 B7
+B7 B7 CD 7D 83 93 FB CD B5 35 A5 87 CE FE 1C F9
+C3 1C 10 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 0F 1F 3F 3C 73
+EF 9E 7E FD FD ED AD FD DD FF BF FF 5F DF EF FF
+FF FF 6F FF DF EF FD DD FD BC FE 7E BF EF 7B 3E
+1F 0F 07 00 00 0E 1F 3C 77 5F 3D 7D FB FB 7A FA
+FE FE FE FE FF FF 7E FE BF FD F5 F5 F6 FA FB DF
+67 78 3C 1C 00 00 00 00 00 00 00 00 80 80 00 00
+60 60 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+
+00 00 00 C0 80 00 00 80 80 00 00 00 00 00 00 00
+00 40 00 10 38 80 00 00 80 C0 C0 00 00 00 00 00
+00 00 01 00 00 81 83 83 87 E7 EF EF EB FF F7 DF
+FA FE FF EB EE EE E7 67 63 61 60 60 60 E0 E0 E0
+60 60 60 60 60 60 70 70 70 70 70 70 70 71 73 7B
+7F 7F 7F 7F 7F 7E 7F 77 76 73 73 71 71 70 71 70
+70 70 70 70 F0 F0 F0 F0 F0 F0 F0 F1 F1 F1 E0 E0
+E8 EC EE E7 E2 E4 E8 D0 E0 E0 C0 C0 C0 C0 C0 C0
+
+10 10 10 10 1F 13 A1 AD C8 49 47 42 40 C0 DC 78
+60 60 20 21 31 30 11 1A 1B 0B 0D 0C 04 06 06 06
+03 03 03 13 31 71 71 61 81 81 41 20 26 0C 1C 30
+78 00 00 84 C4 84 84 0C 04 02 02 01 01 07 0E 0E
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 60 E0 E0 C0 80 00 00 00 00 00
+00 00 00 00 00 60 E0 C0 C0 00 00 81 81 81 41 41
+21 21 13 13 13 03 0B 0B 0B 0F 0F 07 07 07 07 07
+
+00 00 00 00 00 00 03 01 01 00 00 06 07 03 03 00
+00 00 00 00 00 00 00 00 00 00 00 08 0C 40 EE 79
+35 02 08 08 04 04 02 1F 3D 3C 00 00 00 00 00 04
+04 24 00 0D 30 31 01 03 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 82 C6 C6 36 68 44
+B4 A0 52 62 02 02 02 00 01 03 32 7A 3E 1A 02 02
+02 02 02 02 02 00 1D 3D 1D 01 01 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+]
+
+function initDisplay() {
+  buffer startBuffer = [
+    WRITE_COMMAND,
+
+    DISPLAY_OFF,
+
+    SET_CLOCK_DIVIDER,
+    80h,
+
+    SET_MULTIPLEX,
+    screenHeight - 1,
+
+    SET_DISPLAY_OFFSET,
+    00h,
+
+    SET_START_LINE,
+
+    CHARGE_PUMP,
+    14h,
+
+    SET_MEMORY_MODE,
+    01h,
+
+    X_MAP_INVERTED,
+
+    COM_DECREMENTAL,
+
+    SET_LOW_COLUMN,
+
+    SET_HIGH_COLUMN,
+
+    SET_COM_PINS,
+    // is128_64 ? 12h : 02h,
+    12h,
+
+    SET_CONTRAST,
+    // is128_64 ? cfh : 8fh,
+    cfh,
+
+
+    SET_PRECHARGE,
+    f1h,
+
+    SET_VCOM_DETECT,
+    20h,
+
+    DISPLAY_SHOW_MEMORY,
+    NORMAL_DISPLAY,
+    DISPLAY_ON,
+    SET_MEMORY_MODE,
+    02h
+  ]
+
+  i2c_start();
+  i2c_stream(
+    deviceAddress,
+    startBuffer
+  )
+
+  i2cStop();
+  i2cGetAck();
+
+}
+
+function writeStream(bytes) {
+  i2cStart();
+  i2cWriteAndAck([deviceAddress, ...bytes]);
+  i2cStop();
+
+  return i2cGetAck();
+}
+
+async function writeDataByPage(bytes) {
+  const slices = 8;
+  const sliceLength = Math.round(bytes.length / slices);
+
+  for (let sliceIndex = 0; sliceIndex < slices; sliceIndex++) {
+    let start = sliceIndex * sliceLength;
+    let slice = bytes.slice(start, start + sliceLength);
+
+    writeStream([WRITE_COMMAND, SELECT_PAGE + sliceIndex]);
+    writeStream([WRITE_DATA, ...slice, ...zeroFill(lineDrift) ]);
+  }
+}
+
+i2cSetup();
+const deviceAddress = await i2cFindDevice();
+
+await initDisplay();
+await writeDataByPage(data);
