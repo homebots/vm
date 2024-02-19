@@ -577,7 +577,7 @@ void MOVE_TO_FLASH vm_load(Program *program, byteref _bytes, int length)
   program->counter = 0;
   program->paused = false;
 
-  _printf(program, "[i] Loaded %u bytes\n", length);
+  _printf(program, "[i] Loaded %d bytes\n", length);
   os_timer_setfn(&program->timer, &vm_tick, program);
   os_timer_arm(&program->timer, 1, 0);
 }
