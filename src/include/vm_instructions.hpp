@@ -331,7 +331,7 @@ void MOVE_TO_FLASH vm_systemInformation(Program *p)
 
 void MOVE_TO_FLASH vm_dump(Program *p)
 {
-  int i = 0;
+  uint i = 0;
   _printf(p, "\nProgram\n");
   while (i < p->endOfTheProgram)
   {
