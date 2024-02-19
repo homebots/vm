@@ -21,7 +21,7 @@
 static Program program;
 static os_timer_t wifiTimer;
 static struct espconn *conn;
-static const char *httpOK = "HTTP/1.1 200 OK\r\n\r\nOK\r\n";
+static const char *httpOK = "HTTP/1.1 200 OK\r\n\r\n\r\n";
 static const char *httpNotOK = "HTTP/1.1 400 Bad payload\r\n\r\n";
 static const char separator[4] = {0x0d, 0x0a, 0x0d, 0x0a};
 
@@ -103,13 +103,13 @@ void checkConnection(void *arg)
 void printBuffer(char *data, unsigned short length)
 {
   int i = 0;
-  TRACE("\nBUFFER\n");
+  // TRACE("\nBUFFER\n");
   while (i < length)
   {
     TRACE("%02x ", data[i++]);
   }
 
-  TRACE("\n<<END\n");
+  // TRACE("\n<<END\n");
 }
 
 void onReceive(void *arg, char *data, unsigned short length)
@@ -147,10 +147,7 @@ void onReceive(void *arg, char *data, unsigned short length)
 
   if (i < length)
   {
-    // TRACE("Program found at %d\n", i);
-    // printBuffer(data + i, length - i);
     espconn_send(conn, (uint8 *)httpOK, strlen(httpOK));
-    // espconn_disconnect(conn);
     vm_load(&program, (unsigned char *)data + i, length - i);
     return;
   }
@@ -161,8 +158,8 @@ void onReceive(void *arg, char *data, unsigned short length)
 
 void onSend(char *data, int length)
 {
-  TRACE("send %d bytes, state %d\n", length, conn->state);
-  printBuffer(data, length);
+  // TRACE("send %d bytes, state %d\n", length, conn->state);
+  // printBuffer(data, length);
   if (conn->state == ESPCONN_CONNECT || conn->state == ESPCONN_WRITE)
   {
     espconn_send(conn, (uint8 *)data, length);
