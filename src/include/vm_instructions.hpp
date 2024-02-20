@@ -25,6 +25,11 @@ Value _readValue(Program *p)
     value.update(type, (void *)_readByte(p));
     break;
 
+  case vt_null:
+    value.update(type, 0);
+    _readByte(p);
+    break;
+
   case vt_integer:
   case vt_address:
     ref = &p->bytes[p->counter];
@@ -48,9 +53,14 @@ void _printValue(Program *p, Value value)
   byte ch;
   switch (value.getType())
   {
+  case vt_null:
+    _printf(p, "null");
+    return;
+
   case vt_identifier:
     _printValue(p, p->slots[value.toByte()]);
     return;
+
   case vt_byte:
     ch = value.toByte();
     if (ch == 0x13 || ch == 0x10)
