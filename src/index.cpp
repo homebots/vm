@@ -100,17 +100,14 @@ void checkConnection(void *arg)
   }
 }
 
-void printBuffer(char *data, unsigned short length)
-{
-  int i = 0;
-  // TRACE("\nBUFFER\n");
-  while (i < length)
-  {
-    TRACE("%02x ", data[i++]);
-  }
-
-  // TRACE("\n<<END\n");
-}
+// void printBuffer(char *data, unsigned short length)
+// {
+//   int i = 0;
+//   while (i < length)
+//   {
+//     TRACE("%02x ", data[i++]);
+//   }
+// }
 
 void onReceive(void *arg, char *data, unsigned short length)
 {
@@ -159,7 +156,6 @@ void onReceive(void *arg, char *data, unsigned short length)
 void onSend(char *data, int length)
 {
   TRACE("send %d bytes, state %d\n", length, conn->state);
-  // printBuffer(data, length);
   if (conn->state == ESPCONN_CONNECT || conn->state == ESPCONN_WRITE)
   {
     espconn_send(conn, (uint8 *)data, length);
@@ -167,7 +163,7 @@ void onSend(char *data, int length)
 }
 
 void onHalt() {
-  TRACE("halt, state %d\n", length, conn->state);
+  TRACE("halt, state %d\n", conn->state);
   if (conn->state == ESPCONN_CONNECT)
   {
     espconn_disconnect(conn);
@@ -200,7 +196,6 @@ void setup()
   wifi.disconnect();
   wifi.stopAccessPoint();
   wifi.startAccessPoint();
-  TRACE("Connecting to %s : %s\n", WIFI_SSID, WIFI_PASSWORD);
   wifi.connectTo(WIFI_SSID, WIFI_PASSWORD);
 
   conn = (struct espconn *)os_zalloc(sizeof(struct espconn));
