@@ -119,7 +119,7 @@ void onReceive(void *arg, char *data, unsigned short length)
 
   if (strncmp(data, "GET", 3) == 0)
   {
-    TRACE("Status");
+    TRACE("Status\n");
     espconn_send(conn, (uint8 *)httpOK, strlen(httpOK));
     vm_systemInformation(&program);
     vm_dump(&program);
@@ -158,7 +158,7 @@ void onReceive(void *arg, char *data, unsigned short length)
 
 void onSend(char *data, int length)
 {
-  // TRACE("send %d bytes, state %d\n", length, conn->state);
+  TRACE("send %d bytes, state %d\n", length, conn->state);
   // printBuffer(data, length);
   if (conn->state == ESPCONN_CONNECT || conn->state == ESPCONN_WRITE)
   {
@@ -167,6 +167,7 @@ void onSend(char *data, int length)
 }
 
 void onHalt() {
+  TRACE("halt, state %d\n", length, conn->state);
   if (conn->state == ESPCONN_CONNECT)
   {
     espconn_disconnect(conn);
