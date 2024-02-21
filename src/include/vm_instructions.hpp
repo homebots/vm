@@ -461,10 +461,10 @@ void MOVE_TO_FLASH vm_ioWrite(Program *p)
 void MOVE_TO_FLASH vm_ioRead(Program *p)
 {
   auto target = _readValue(p);
-  auto pin = _readValue(p).fromPin();
+  auto value = _readValue(p).fromPin();
 
-  _updateSlotWithInteger(p, target.toByte(), (uint)pinValue);
-  _printf(p, "io read %d, %d\n", pin, pinValue);
+  _updateSlotWithInteger(p, target.toByte(), (uint)value);
+  _printf(p, "io read %d, %d\n", target.toByte(), (uint)value);
 }
 
 void MOVE_TO_FLASH vm_ioAllOut(Program *p)
