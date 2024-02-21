@@ -461,8 +461,7 @@ void MOVE_TO_FLASH vm_ioWrite(Program *p)
 void MOVE_TO_FLASH vm_ioRead(Program *p)
 {
   auto target = _readValue(p);
-  auto pin = _readValue(p).toByte();
-  auto pinValue = (byte)os_io_read(pin);
+  auto pin = _readValue(p).fromPin();
 
   _updateSlotWithInteger(p, target.toByte(), (uint)pinValue);
   _printf(p, "io read %d, %d\n", pin, pinValue);
@@ -587,7 +586,13 @@ void MOVE_TO_FLASH vm_load(Program *program, byteref _bytes, int length)
   program->counter = 0;
   program->paused = false;
 
-  _printf(program, "[i] Loaded %d bytes\n", length);
+  int i;
+  for (i = 0; i < NUMBER_OF_PINS; i++)
+  {
+    program->interruptHandlers[i] = 0;
+  }
+
+  // _printf(program, "[i] Loaded %d bytes\n", length);
   os_timer_setfn(&program->timer, &vm_tick, program);
   os_timer_arm(&program->timer, 1, 0);
 }

@@ -1,13 +1,10 @@
-```
-// blink pins 0 and 2 every 2 seconds
+// blink a pin every 2 seconds
 
-def begin
-  not       #0, #0,
-  iowrite   pin 0, #0,
-  iowrite   pin 2, #0,
-  delay     2000
-  begin()
+byte $value = 0h
+io_all_output
 
-
-begin()
-```
+def loop
+  io write pin 2, $value
+  $value = not $value
+  delay 2000
+  loop()

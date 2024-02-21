@@ -120,15 +120,6 @@ typedef void (*halt_callback)();
 class Program
 {
 public:
-  Program()
-  {
-    int i;
-    for (i = 0; i < NUMBER_OF_PINS; i++)
-    {
-      interruptHandlers[i] = 0;
-    }
-  }
-
   Timer timer;
   byteref bytes = nullptr;
   uint endOfTheProgram = 0;

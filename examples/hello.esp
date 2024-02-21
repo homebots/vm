@@ -1,6 +1,2 @@
 debug on
-
-@hello
-  delay 1000
-  print 'Hello, world!', 10h
-  jump to @hello
+say 'Hello, world!'

@@ -86,7 +86,6 @@ typedef struct
   int delay;
   timerCallback *fn;
   void *arg;
-  bool active;
 } Timer;
 
 void os_timer_setfn(Timer *timer, timerCallback *fn, void *arg)
@@ -103,7 +102,6 @@ void os_timer_arm(Timer *timer, unsigned int delay, int zero)
 
 void os_timer_disarm(Timer *timer)
 {
-  timer->active = false;
 }
 
 void os_sleep(uint64 time)
