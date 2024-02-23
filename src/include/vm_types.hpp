@@ -1,4 +1,5 @@
 #define MAX_SLOTS 256
+#define MAX_STACK_SIZE 64
 
 #define vt_null 0
 #define vt_identifier 1
@@ -130,4 +131,55 @@ public:
   bool paused = false;
   send_callback onSend = 0;
   halt_callback onHalt = 0;
+
+  int callStack[MAX_STACK_SIZE];
+  int callStackPointer = MAX_STACK_SIZE - 1;
+
+  void reset()
+  {
+    counter = 0;
+    paused = false;
+
+    int i;
+    for (i = 0; i < NUMBER_OF_PINS; i++)
+    {
+      interruptHandlers[i] = 0;
+    }
+
+    for (i = 0; i < MAX_STACK_SIZE; i++)
+    {
+      callStack[i] = 0;
+    }
+  }
+
+  int callStackPush(int value)
+  {
+    if (callStack[callStackPointer] == value)
+    {
+      return 0;
+    }
+
+    if (callStackPointer == 0)
+    {
+      paused = true;
+      return -1;
+    }
+
+    callStackPointer--;
+    callStack[callStackPointer] = counter;
+    return 1;
+  }
+
+  int callStackPop()
+  {
+    if (callStackPointer + 1 >= MAX_STACK_SIZE)
+    {
+      paused = true;
+      return -1;
+    }
+
+    counter = callStack[callStackPointer];
+    callStackPointer++;
+    return 1;
+  }
 };

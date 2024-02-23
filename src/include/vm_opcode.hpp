@@ -11,6 +11,7 @@
 #define op_jumpto 0x0a
 #define op_jumpif 0x0b
 #define op_sleep 0x0c
+#define op_return 0x0d
 
 // operators [0x20..0x3f]
 // binary operations
@@ -36,6 +37,7 @@
 
 #define op_assign 0x31
 #define op_declare 0x32
+#define op_define 0x33
 
 // memory/io instructions [0x40..0x5f]
 #define op_memget 0x40

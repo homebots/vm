@@ -296,21 +296,36 @@ void MOVE_TO_FLASH vm_ioInterruptToggle(Program *p)
 
 void MOVE_TO_FLASH vm_jumpTo(Program *p)
 {
+  auto position = _readValue(p).toInteger();
+  if (p->callStackPush(position) != -1)
+  {
+    p->counter = position;
+    _printf(p, "jump to %d\n", p->counter);
+  }
+}
+
+void MOVE_TO_FLASH vm_return(Program *p)
+{
   auto position = _readValue(p);
-  p->counter = position.toInteger();
-  _printf(p, "jump to %d\n", p->counter);
+  if (p->callStackPop() != -1)
+  {
+    _printf(p, "return to %d\n", p->counter);
+  }
 }
 
 void MOVE_TO_FLASH vm_jumpIf(Program *p)
 {
   auto condition = _readValue(p);
-  auto position = _readValue(p);
+  auto position = _readValue(p).toInteger();
 
   if (!condition.toBoolean())
     return;
 
-  p->counter = position.toInteger();
-  _printf(p, "jump if: %d\n", p->counter);
+  if (p->callStackPush(position) != -1)
+  {
+    p->counter = position;
+    _printf(p, "jump if: %d\n", p->counter);
+  }
 }
 
 void MOVE_TO_FLASH vm_toggleDebug(Program *p)
@@ -455,7 +470,7 @@ void MOVE_TO_FLASH vm_ioWrite(Program *p)
   auto value = _readValue(p).toBoolean();
 
   _printf(p, "io write %d %d\n", pin, value);
-  os_io_write(pin, (bool)value);
+  os_io_write(pin, value);
 }
 
 void MOVE_TO_FLASH vm_ioRead(Program *p)
@@ -583,16 +598,8 @@ void MOVE_TO_FLASH vm_load(Program *program, byteref _bytes, int length)
 
   os_memcpy(program->bytes, _bytes, length);
   program->endOfTheProgram = length;
-  program->counter = 0;
-  program->paused = false;
+  program->reset();
 
-  int i;
-  for (i = 0; i < NUMBER_OF_PINS; i++)
-  {
-    program->interruptHandlers[i] = 0;
-  }
-
-  // _printf(program, "[i] Loaded %d bytes\n", length);
   os_timer_setfn(&program->timer, &vm_tick, program);
   os_timer_arm(&program->timer, 1, 0);
 }
@@ -604,6 +611,7 @@ void vm_next(Program *p)
   switch (next)
   {
   case op_noop:
+  case op_define:
     break;
 
   case op_halt:
