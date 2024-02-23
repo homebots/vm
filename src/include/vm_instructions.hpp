@@ -1,5 +1,7 @@
 // ========= Internals =========
 
+static char printBuffer[1024];
+
 void vm_next(Program *p);
 void _printf(Program *p, const char *format, ...) __attribute__((format(printf, 2, 3)));
 
@@ -265,7 +267,6 @@ void MOVE_TO_FLASH vm_delay(Program *p)
     p->delayTime = MAX_DELAY;
   }
 
-  os_printf("DELAY %d\n", p->delayTime);
   _printf(p, "delay %d\n", p->delayTime);
 }
 
@@ -336,12 +337,14 @@ void MOVE_TO_FLASH vm_toggleDebug(Program *p)
 
   if (value)
   {
+    p->debug = true;
     os_enableSerial();
     _printf(p, "serial debug on\n");
     return;
   }
 
   _printf(p, "serial debug off\n");
+  p->debug = false;
   os_disableSerial();
 }
 
@@ -573,18 +576,17 @@ void MOVE_TO_FLASH vm_i2cread(Program *p)
 
 void _printf(Program *p, const char *format, ...)
 {
-  if (p->onSend == nullptr)
+  if (p->onSend == nullptr || !p->debug)
   {
     return;
   }
 
   va_list arg;
-  va_start(arg, format);
-  char buffer[1024];
-  int length = os_sprintf(buffer, format, arg);
+  va_start(arg);
+  int length = os_sprintf(printBuffer, format, arg);
   os_printf(format, arg);
   va_end(arg);
-  p->onSend(buffer, length);
+  p->onSend(printBuffer, length);
 }
 
 void MOVE_TO_FLASH vm_load(Program *program, byteref _bytes, int length)

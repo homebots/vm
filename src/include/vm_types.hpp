@@ -131,6 +131,7 @@ public:
   Value slots[MAX_SLOTS];
   uint interruptHandlers[NUMBER_OF_PINS];
   bool paused = false;
+  bool debug = false;
   send_callback onSend = 0;
   halt_callback onHalt = 0;
 
