@@ -118,9 +118,9 @@ void onReceive(void *arg, char *data, unsigned short length)
   {
     TRACE("Status\n");
     espconn_send(conn, (uint8 *)httpOK, strlen(httpOK));
-    vm_systemInformation(&program);
-    vm_dump(&program);
-    espconn_disconnect(conn);
+    // vm_systemInformation(&program);
+    // vm_dump(&program);
+    // espconn_disconnect(conn);
     return;
   }
 
