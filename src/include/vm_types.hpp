@@ -1,3 +1,5 @@
+#include "osapi.h"
+
 #define MAX_SLOTS 256
 #define MAX_STACK_SIZE 64
 
@@ -9,6 +11,8 @@
 #define vt_integer 5
 #define vt_signedInteger 6
 #define vt_string 7
+
+static char *printBuffer = (char *)malloc(1024);
 
 typedef unsigned char byte;
 typedef unsigned char *byteref;
@@ -65,9 +69,9 @@ public:
     byteref byte3 = byte2 + 1;
 
     uint32 number = (*byte3 & 0xff) << 24 |
-           (*byte2 & 0xff) << 16 |
-           (*byte1 & 0xff) << 8 |
-           (*byte0 & 0xff);
+                    (*byte2 & 0xff) << 16 |
+                    (*byte1 & 0xff) << 8 |
+                    (*byte0 & 0xff);
 
     return number;
   }
@@ -143,16 +147,8 @@ public:
     counter = 0;
     paused = false;
 
-    int i;
-    for (i = 0; i < NUMBER_OF_PINS; i++)
-    {
-      interruptHandlers[i] = 0;
-    }
-
-    for (i = 0; i < MAX_STACK_SIZE; i++)
-    {
-      callStack[i] = 0;
-    }
+    os_memset(&interruptHandlers, 0, NUMBER_OF_PINS * sizeof(uint));
+    os_memset(&callStack, 0, MAX_STACK_SIZE * sizeof(int));
   }
 
   int callStackPush(int value)
@@ -184,5 +180,57 @@ public:
     counter = callStack[callStackPointer];
     callStackPointer++;
     return 1;
+  }
+
+  void printf(const char *format, va_list args)
+  {
+    os_memset(printBuffer, 0, 1024);
+    char *p = (char *)format;
+    int len = 0;
+
+    for (; *p; p++)
+    {
+      if (*p != '%')
+      {
+        printBuffer[len++] = (*p);
+        continue;
+      }
+      switch (*++p)
+      {
+      case 'd':
+      {
+        int d = va_arg(args, int);
+        int c = ets_sprintf(printBuffer + len, "%d", d);
+        len += c - 1;
+        break;
+      }
+      case 'x':
+      {
+        int d = va_arg(args, int);
+        int c = ets_sprintf(printBuffer + len, "%02x", d);
+        len += c - 1;
+        break;
+      }
+      case 'c':
+      {
+        char c = va_arg(args, int);
+        printBuffer[len++] = c;
+        break;
+      }
+      case 's':
+      {
+        char *s = va_arg(args, char *);
+        int slen = strlen(s);
+        os_memcpy(printBuffer + len, s, slen);
+        len += slen;
+        break;
+      }
+      default:
+        printBuffer[len++] = (*p);
+        break;
+      }
+    }
+
+    onSend(printBuffer, len);
   }
 };

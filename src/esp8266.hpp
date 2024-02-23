@@ -5,11 +5,9 @@
 #include "sdk.h"
 
 #define Timer os_timer_t
-
 static Wifi wifi;
 
 #define os_restart system_restart
-
 #define os_io_read pinRead
 #define os_io_write pinWrite
 #define os_io_type pinType
@@ -53,6 +51,18 @@ void os_io_allOutput()
   pinMode(1, PinOutput);
   pinMode(2, PinOutput);
   pinMode(3, PinOutput);
+}
+
+void os_io_allInput()
+{
+  pinType(0, 0);
+  pinType(1, 3);
+  pinType(2, 0);
+  pinType(3, 3);
+  pinMode(0, PinInput);
+  pinMode(1, PinInput);
+  pinMode(2, PinInput);
+  pinMode(3, PinInput);
 }
 
 void os_wifi_ap()

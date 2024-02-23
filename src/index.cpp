@@ -162,7 +162,8 @@ void onSend(char *data, int length)
   }
 }
 
-void onHalt() {
+void onHalt()
+{
   TRACE("halt, state %d\n", conn->state);
   if (conn->state == ESPCONN_CONNECT)
   {

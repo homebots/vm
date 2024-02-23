@@ -1,9 +1,19 @@
 // ========= Internals =========
 
-static char printBuffer[1024];
-
 void vm_next(Program *p);
 void _printf(Program *p, const char *format, ...) __attribute__((format(printf, 2, 3)));
+void _printf(Program *p, const char *format, ...)
+{
+  if (p->onSend == nullptr || !p->debug)
+  {
+    return;
+  }
+
+  va_list args;
+  va_start(args, format);
+  p->printf(format, args);
+  va_end(args);
+}
 
 byteref _readByte(Program *p)
 {
@@ -77,7 +87,7 @@ void _printValue(Program *p, Value value)
       return;
     }
 
-    _printf(p, "\\x%02x", value.toByte());
+    _printf(p, "%x", value.toByte());
     return;
 
   case vt_pin:
@@ -89,7 +99,7 @@ void _printValue(Program *p, Value value)
     return;
 
   case vt_address:
-    _printf(p, "%u", value.fromAddress());
+    _printf(p, "%d", value.fromAddress());
     return;
 
   case vt_string:
@@ -235,7 +245,7 @@ void MOVE_TO_FLASH vm_sleep(Program *p)
 {
   auto time = _readValue(p).toInteger();
 
-  _printf(p, "sleep %u\n", time);
+  _printf(p, "sleep %d\n", time);
   os_sleep((uint64)time);
 }
 
@@ -355,8 +365,8 @@ void MOVE_TO_FLASH vm_printStationStatus(Program *p)
 
 void MOVE_TO_FLASH vm_systemInformation(Program *p)
 {
-  _printf(p, "Time now: %u\n", os_time() / 1000);
-  _printf(p, "Free mem: %u bytes\n", os_freeHeapSize());
+  _printf(p, "Time now: %d\n", os_time() / 1000);
+  _printf(p, "Free mem: %d bytes\n", os_freeHeapSize());
 }
 
 void MOVE_TO_FLASH vm_dump(Program *p)
@@ -365,7 +375,7 @@ void MOVE_TO_FLASH vm_dump(Program *p)
   _printf(p, "\nProgram\n");
   while (i < p->endOfTheProgram)
   {
-    _printf(p, "%02x ", p->bytes[i++]);
+    _printf(p, "%x ", p->bytes[i++]);
   }
 
   _printf(p, "\nSlots\n");
@@ -400,7 +410,7 @@ void MOVE_TO_FLASH vm_readFromMemory(Program *p)
   auto slotId = _readValue(p).toByte();
   auto address = _readValue(p).toInteger();
 
-  _printf(p, "memget [%d], %u\n", slotId, address);
+  _printf(p, "memget [%d], %d\n", slotId, address);
 
   // if (1)
   // {
@@ -572,21 +582,6 @@ void MOVE_TO_FLASH vm_i2cread(Program *p)
   *(byte *)v = value;
   p->slots[target.toByte()].update(vt_byte, v, true);
   _printf(p, "i2cread %d\n", value);
-}
-
-void _printf(Program *p, const char *format, ...)
-{
-  if (p->onSend == nullptr || !p->debug)
-  {
-    return;
-  }
-
-  va_list arg;
-  va_start(arg);
-  int length = os_sprintf(printBuffer, format, arg);
-  os_printf(format, arg);
-  va_end(arg);
-  p->onSend(printBuffer, length);
 }
 
 void MOVE_TO_FLASH vm_load(Program *program, byteref _bytes, int length)
@@ -779,7 +774,7 @@ void vm_next(Program *p)
     break;
 
   default:
-    _printf(p, "\n[!] Invalid operation: %02x\n", next);
+    _printf(p, "\n[!] Invalid operation: %d\n", next);
     vm_halt(p);
   }
 
