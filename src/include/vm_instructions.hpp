@@ -265,6 +265,7 @@ void MOVE_TO_FLASH vm_delay(Program *p)
     p->delayTime = MAX_DELAY;
   }
 
+  os_printf("DELAY %d\n", p->delayTime);
   _printf(p, "delay %d\n", p->delayTime);
 }
 

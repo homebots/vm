@@ -155,7 +155,7 @@ void onReceive(void *arg, char *data, unsigned short length)
 
 void onSend(char *data, int length)
 {
-  TRACE("send %d bytes, state %d\n", length, conn->state);
+  // TRACE("send %d bytes, state %d\n", length, conn->state);
   if (conn->state == ESPCONN_CONNECT || conn->state == ESPCONN_WRITE)
   {
     espconn_send(conn, (uint8 *)data, length);
