@@ -580,6 +580,7 @@ void _printf(Program *p, const char *format, ...)
   va_start(arg, format);
   char buffer[1024];
   int length = os_sprintf(buffer, format, arg);
+  os_printf(format, arg);
   va_end(arg);
   p->onSend(buffer, length);
 }
