@@ -64,10 +64,10 @@ public:
     byteref byte2 = byte1 + 1;
     byteref byte3 = byte2 + 1;
 
-    return (uint)(*byte3 & 0xff) << 24 |
-           (uint)(*byte2 & 0xff) << 16 |
-           (uint)(*byte1 & 0xff) << 8 |
-           (uint)(*byte0 & 0xff);
+    return (*byte3 & 0xff) << 24 |
+           (*byte2 & 0xff) << 16 |
+           (*byte1 & 0xff) << 8 |
+           (*byte0 & 0xff);
   }
 
   byte toByte()

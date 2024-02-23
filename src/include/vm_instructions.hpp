@@ -261,6 +261,7 @@ void MOVE_TO_FLASH vm_delay(Program *p)
 
   if (p->delayTime > MAX_DELAY)
   {
+    _printf(p, "delay max\n");
     p->delayTime = MAX_DELAY;
   }
 
