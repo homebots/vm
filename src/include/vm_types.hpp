@@ -155,7 +155,7 @@ public:
     printBufferCursor = 0;
   }
 
-  int callStackPush(int value)
+  int callStackPush()
   {
     if (callStackCursor >= MAX_STACK_CURSOR)
     {
@@ -164,7 +164,7 @@ public:
       return -1;
     }
 
-    if (callStack[callStackCursor] == value)
+    if (callStack[callStackCursor] == counter)
     {
       return 0;
     }
@@ -182,8 +182,20 @@ public:
       return -1;
     }
 
-    counter = callStack[callStackCursor--];
+    callStackCursor--;
+    counter = callStack[callStackCursor];
+    callStack[callStackCursor] = 0;
     return 1;
+  }
+
+  void stackTrace()
+  {
+    os_printf("Call stack:\n");
+    int i = 0;
+    for (; i <= MAX_STACK_CURSOR; i++)
+    {
+      os_printf("  %d\n", callStack[i]);
+    }
   }
 
   void flush()

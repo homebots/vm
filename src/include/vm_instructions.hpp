@@ -4,7 +4,7 @@ void vm_next(Program *p);
 void _printf(Program *p, const char *format, ...) __attribute__((format(printf, 2, 3)));
 void _printf(Program *p, const char *format, ...)
 {
-  if (p->onSend == nullptr || !p->debug)
+  if (p->onSend == nullptr)
   {
     return;
   }
@@ -13,6 +13,17 @@ void _printf(Program *p, const char *format, ...)
   va_start(args, format);
   p->printf(format, args);
   va_end(args);
+}
+
+void _debug(Program *p, const char *format, ...)
+{
+  if (p->onSend != nullptr && p->debug)
+  {
+    va_list args;
+    va_start(args, format);
+    p->printf(format, args);
+    va_end(args);
+  }
 }
 
 byteref _readByte(Program *p)
@@ -125,7 +136,7 @@ void vm_tick(void *p)
   if (program->paused)
   {
     os_timer_disarm(&program->timer);
-    _printf(program, "\n[!] program is paused\n");
+    _debug(program, "\n[!] program is paused\n");
     return;
   }
 
@@ -212,7 +223,7 @@ void MOVE_TO_FLASH vm_binaryOperation(Program *p, byte operation)
   }
 
   _updateSlotWithInteger(p, target.toByte(), newValue);
-  _printf(p, "Binary %d: $%d = %d\n", operation, target.toByte(), newValue);
+  _debug(p, "Binary %d: $%d = %d\n", operation, target.toByte(), newValue);
 }
 
 void MOVE_TO_FLASH vm_unaryOperation(Program *p, byte operation)
@@ -221,7 +232,7 @@ void MOVE_TO_FLASH vm_unaryOperation(Program *p, byte operation)
   auto newValue = target.toInteger() + ((operation == op_inc) ? 1 : -1);
 
   _updateSlotWithInteger(p, target.toByte(), newValue);
-  _printf(p, "Unary %d: $%d = %d\n", operation, target.toByte(), newValue);
+  _debug(p, "Unary %d: $%d = %d\n", operation, target.toByte(), newValue);
 }
 
 void MOVE_TO_FLASH vm_notOperation(Program *p)
@@ -230,7 +241,7 @@ void MOVE_TO_FLASH vm_notOperation(Program *p)
   auto value = !_readValue(p).toBoolean();
 
   _updateSlotWithInteger(p, target.toByte(), (uint)value);
-  _printf(p, "Not %d: %d\n", target.toByte(), value);
+  _debug(p, "Not %d: %d\n", target.toByte(), value);
 }
 
 void MOVE_TO_FLASH vm_assignOperation(Program *p)
@@ -245,13 +256,13 @@ void MOVE_TO_FLASH vm_sleep(Program *p)
 {
   auto time = _readValue(p).toInteger();
 
-  _printf(p, "sleep %d\n", time);
+  _debug(p, "sleep %d\n", time);
   os_sleep((uint64)time);
 }
 
 void MOVE_TO_FLASH vm_halt(Program *p)
 {
-  _printf(p, "halt\n");
+  _debug(p, "halt\n");
   p->paused = true;
 
   if (p->onHalt == nullptr)
@@ -273,11 +284,11 @@ void MOVE_TO_FLASH vm_delay(Program *p)
 
   if (p->delayTime > MAX_DELAY)
   {
-    _printf(p, "delay max\n");
+    _debug(p, "delay max\n");
     p->delayTime = MAX_DELAY;
   }
 
-  _printf(p, "delay %d\n", p->delayTime);
+  _debug(p, "delay %d\n", p->delayTime);
 }
 
 void MOVE_TO_FLASH vm_ioInterrupt(Program *p)
@@ -288,7 +299,7 @@ void MOVE_TO_FLASH vm_ioInterrupt(Program *p)
   void *handler = (void *)&_onInterruptTriggered;
 
   p->interruptHandlers[pin] = position;
-  _printf(p, "interrupt pin %d, mode %d, jump to %d\n", pin, mode, position);
+  _debug(p, "interrupt pin %d, mode %d, jump to %d\n", pin, mode, position);
   os_io_interrupt(pin, handler, (void *)p, mode);
 }
 
@@ -299,35 +310,27 @@ void MOVE_TO_FLASH vm_ioInterruptToggle(Program *p)
   if (enabled)
   {
     os_io_enableInterrupts();
-    _printf(p, "interrupts armed\n");
+    _debug(p, "interrupts armed\n");
     return;
   }
 
   os_io_disableInterrupts();
-  _printf(p, "interrupts disarmed\n");
+  _debug(p, "interrupts disarmed\n");
 }
 
 void MOVE_TO_FLASH vm_jumpTo(Program *p)
 {
   auto position = _readValue(p).toInteger();
-  if (p->callStackPush(position) != -1)
+
+  if (p->callStackPush() != -1)
   {
+    _debug(p, "jump %d -> %d\n", p->counter, position);
     p->counter = position;
-    _printf(p, "jump to %d\n", p->counter);
     return;
   }
 
-  _printf(p, "Max call stack %d\n", position);
-  vm_halt(p);
-}
-
-void MOVE_TO_FLASH vm_return(Program *p)
-{
-  auto position = _readValue(p);
-  if (p->callStackPop() != -1)
-  {
-    _printf(p, "return to %d\n", p->counter);
-  }
+  _debug(p, "Max call stack %d\n", position);
+  p->stackTrace();
 }
 
 void MOVE_TO_FLASH vm_jumpIf(Program *p)
@@ -338,10 +341,22 @@ void MOVE_TO_FLASH vm_jumpIf(Program *p)
   if (!condition.toBoolean())
     return;
 
-  if (p->callStackPush(position) != -1)
+  if (p->callStackPush() != -1)
   {
+    _debug(p, "if jump %d -> %d\n", p->counter, position);
     p->counter = position;
-    _printf(p, "jump if: %d\n", p->counter);
+    return;
+  }
+
+  _debug(p, "Max call stack %d\n", position);
+  p->stackTrace();
+}
+
+void MOVE_TO_FLASH vm_return(Program *p)
+{
+  if (p->callStackPop() != -1)
+  {
+    _debug(p, "return to %d\n", p->counter);
   }
 }
 
@@ -353,11 +368,11 @@ void MOVE_TO_FLASH vm_toggleDebug(Program *p)
   {
     p->debug = true;
     os_enableSerial();
-    _printf(p, "serial debug on\n");
+    _debug(p, "serial debug on\n");
     return;
   }
 
-  _printf(p, "serial debug off\n");
+  _debug(p, "serial debug off\n");
   p->debug = false;
   os_disableSerial();
 }
@@ -369,31 +384,31 @@ void MOVE_TO_FLASH vm_printStationStatus(Program *p)
 
 void MOVE_TO_FLASH vm_systemInformation(Program *p)
 {
-  _printf(p, "Time now: %d\n", os_time() / 1000);
-  _printf(p, "Free mem: %d bytes\n", os_freeHeapSize());
+  _debug(p, "Time now: %d\n", os_time() / 1000);
+  _debug(p, "Free mem: %d bytes\n", os_freeHeapSize());
 }
 
 void MOVE_TO_FLASH vm_dump(Program *p)
 {
   uint i = 0;
-  _printf(p, "\nProgram\n");
+  _debug(p, "\nProgram\n");
   while (i < p->endOfTheProgram)
   {
-    _printf(p, "%x ", p->bytes[i++]);
+    _debug(p, "%x ", p->bytes[i++]);
   }
 
-  _printf(p, "\nSlots\n");
+  _debug(p, "\nSlots\n");
   for (i = 0; i < MAX_SLOTS; i++)
   {
-    _printf(p, "%d: '", i);
+    _debug(p, "%d: '", i);
     _printValue(p, p->slots[i]);
-    _printf(p, "'\n");
+    _debug(p, "'\n");
   }
 
-  _printf(p, "\nInterrupts\n");
+  _debug(p, "\nInterrupts\n");
   for (i = 0; i < NUMBER_OF_PINS; i++)
   {
-    _printf(p, "%d: %d\n", i, p->interruptHandlers[i]);
+    _debug(p, "%d: %d\n", i, p->interruptHandlers[i]);
   }
 }
 
@@ -404,9 +419,9 @@ void MOVE_TO_FLASH vm_declareReference(Program *p)
 
   p->slots[slotId].update(value);
 
-  _printf(p, "declare %d, %d = ", slotId, p->slots[slotId].getType());
+  _debug(p, "declare %d, %d = ", slotId, p->slots[slotId].getType());
   _printValue(p, p->slots[slotId]);
-  _printf(p, "\n");
+  _debug(p, "\n");
 }
 
 void MOVE_TO_FLASH vm_readFromMemory(Program *p)
@@ -414,7 +429,7 @@ void MOVE_TO_FLASH vm_readFromMemory(Program *p)
   auto slotId = _readValue(p).toByte();
   auto address = _readValue(p).toInteger();
 
-  _printf(p, "memget [%d], %d\n", slotId, address);
+  _debug(p, "memget [%d], %d\n", slotId, address);
 
   // if (1)
   // {
@@ -436,7 +451,7 @@ void MOVE_TO_FLASH vm_writeToMemory(Program *p)
   auto address = (void *)_readValue(p).toInteger();
   auto value = _readValue(p);
 
-  _printf(p, "memset %p\n", address);
+  _debug(p, "memset %p\n", address);
 
   switch (value.getType())
   {
@@ -463,7 +478,7 @@ void MOVE_TO_FLASH vm_ioMode(Program *p)
   auto pin = _readValue(p).toByte();
   auto value = _readValue(p).toByte();
 
-  _printf(p, "io mode %d %d\n", pin, value);
+  _debug(p, "io mode %d %d\n", pin, value);
 
   if (value >= 0 && value <= 3)
   {
@@ -476,7 +491,7 @@ void MOVE_TO_FLASH vm_ioType(Program *p)
   auto pin = _readValue(p).toByte();
   auto value = _readValue(p).toByte();
 
-  _printf(p, "io type %d %d\n", pin, value);
+  _debug(p, "io type %d %d\n", pin, value);
   if (value >= 0 && value <= 4)
   {
     os_io_type(pin, value);
@@ -488,7 +503,7 @@ void MOVE_TO_FLASH vm_ioWrite(Program *p)
   auto pin = _readValue(p).toByte();
   auto value = _readValue(p).toBoolean();
 
-  _printf(p, "io write %d %d\n", pin, value);
+  _debug(p, "io write %d %d\n", pin, value);
   os_io_write(pin, value);
 }
 
@@ -498,18 +513,18 @@ void MOVE_TO_FLASH vm_ioRead(Program *p)
   auto value = _readValue(p).fromPin();
 
   _updateSlotWithInteger(p, target.toByte(), (uint)value);
-  _printf(p, "io read %d, %d\n", target.toByte(), (uint)value);
+  _debug(p, "io read %d, %d\n", target.toByte(), (uint)value);
 }
 
 void MOVE_TO_FLASH vm_ioAllOut(Program *p)
 {
-  _printf(p, "io all out\n");
+  _debug(p, "io all out\n");
   os_io_allOutput();
 }
 
 void MOVE_TO_FLASH vm_startAccessPoint(Program *p)
 {
-  _printf(p, "startAccessPoint\n");
+  _debug(p, "startAccessPoint\n");
   os_wifi_ap();
 }
 
@@ -519,7 +534,7 @@ void MOVE_TO_FLASH vm_wifiConnect(Program *p)
   auto password = _readValue(p);
   bool hasPassword = password.getType() == vt_string;
 
-  _printf(p, "connect to %s / %s\n", ssid, password.toString());
+  _debug(p, "connect to %s / %s\n", ssid, password.toString());
 
   if (hasPassword)
   {
@@ -546,25 +561,25 @@ void MOVE_TO_FLASH vm_i2csetup(Program *p)
   auto clockPin = _readValue(p).toByte();
 
   os_i2c_setup(dataPin, clockPin);
-  _printf(p, "i2c setup SDA %d, SCK %d\n", dataPin, clockPin);
+  _debug(p, "i2c setup SDA %d, SCK %d\n", dataPin, clockPin);
 }
 
 void MOVE_TO_FLASH vm_i2cstart(Program *p)
 {
-  _printf(p, "i2c start\n");
+  _debug(p, "i2c start\n");
   os_i2c_start();
 }
 
 void MOVE_TO_FLASH vm_i2cstop(Program *p)
 {
-  _printf(p, "i2c stop\n");
+  _debug(p, "i2c stop\n");
   os_i2c_stop();
 }
 
 void MOVE_TO_FLASH vm_i2cwrite(Program *p)
 {
   auto byte = _readValue(p).toByte();
-  _printf(p, "i2c write %d\n", byte);
+  _debug(p, "i2c write %d\n", byte);
   os_i2c_writeByteAndAck(byte);
 }
 
@@ -575,7 +590,7 @@ void MOVE_TO_FLASH vm_i2cfind(Program *p)
   byte *value = (byte *)os_zalloc(sizeof(byte));
   *value = deviceId;
   p->slots[slotId].update(vt_byte, value, true);
-  _printf(p, "i2c find %d\n", slotId);
+  _debug(p, "i2c find %d\n", slotId);
 }
 
 void MOVE_TO_FLASH vm_i2cread(Program *p)
@@ -585,7 +600,7 @@ void MOVE_TO_FLASH vm_i2cread(Program *p)
   void *v = os_zalloc(sizeof(byte));
   *(byte *)v = value;
   p->slots[target.toByte()].update(vt_byte, v, true);
-  _printf(p, "i2cread %d\n", value);
+  _debug(p, "i2cread %d\n", value);
 }
 
 void MOVE_TO_FLASH vm_load(Program *program, byteref _bytes, int length)
@@ -615,11 +630,14 @@ void vm_next(Program *p)
   switch (next)
   {
   case op_noop:
-  case op_define:
     break;
 
   case op_halt:
     vm_halt(p);
+    break;
+
+  case op_define:
+    // counter += _readValue(p).toInteger();
     break;
 
   case op_restart:
@@ -700,6 +718,10 @@ void vm_next(Program *p)
 
   case op_jumpif:
     vm_jumpIf(p);
+    break;
+
+  case op_return:
+    vm_return(p);
     break;
 
   case op_gt:
