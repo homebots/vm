@@ -314,7 +314,11 @@ void MOVE_TO_FLASH vm_jumpTo(Program *p)
   {
     p->counter = position;
     _printf(p, "jump to %d\n", p->counter);
+    return;
   }
+
+  _printf(p, "Max call stack %d\n", position);
+  vm_halt(p);
 }
 
 void MOVE_TO_FLASH vm_return(Program *p)

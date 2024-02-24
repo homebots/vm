@@ -1,4 +1,5 @@
-// #define WITH_DEBUG
+
+#define WITH_DEBUG
 #define SERIAL_SPEED 115200
 #define __CHIP_ESP8266__
 
@@ -61,17 +62,12 @@ void checkConnection(void *arg)
 
 void onReceive(void *arg, char *data, unsigned short length)
 {
-  TRACE("Received %d bytes\n", length);
   int i = 0;
 
   if (strncmp(data, "GET", 3) == 0)
   {
     espconn_send(conn, (uint8 *)httpOK, strlen(httpOK));
-    espconn_regist_time(conn, 7199, 1);
-    espconn_tcp_set_max_con_allow(conn, 4);
     program.flush();
-    // vm_systemInformation(&program);
-    // vm_dump(&program);
     return;
   }
 
@@ -95,6 +91,7 @@ void onReceive(void *arg, char *data, unsigned short length)
 
   if (i < length)
   {
+    TRACE("Running %d bytes\n", length - i);
     espconn_send(conn, (uint8 *)httpOK, strlen(httpOK));
     vm_load(&program, (unsigned char *)data + i, length - i);
     return;
@@ -106,7 +103,8 @@ void onReceive(void *arg, char *data, unsigned short length)
 
 void onSend(char *data, int length)
 {
-  if (conn->state == ESPCONN_CONNECT || conn->state == ESPCONN_WRITE)
+  TRACE("%s", data);
+  if (conn->state == ESPCONN_WRITE)
   {
     espconn_send(conn, (uint8 *)data, length);
   }
@@ -114,15 +112,15 @@ void onSend(char *data, int length)
 
 void onHalt()
 {
-  if (conn->state == ESPCONN_CONNECT)
-  {
-    espconn_disconnect(conn);
-  }
+  // if (conn->state == ESPCONN_CONNECT)
+  // {
+  //   espconn_disconnect(conn);
+  // }
 }
 
 void onDisconnect(void *arg)
 {
-  TRACE("Client disconnected\n");
+  TRACE("Disconnected\n");
   espconn_accept(conn);
   checkAgain();
 }
@@ -135,8 +133,6 @@ void onReconnect(void *arg, int error)
 void onConnect(void *arg)
 {
   struct espconn *conn = (espconn *)arg;
-  TRACE("Client connected\n");
-
   espconn_set_opt(conn, ESPCONN_START | ESPCONN_KEEPALIVE);
 }
 
@@ -154,7 +150,8 @@ void setup()
   conn->proto.tcp->local_port = 3000;
 
   espconn_create(conn);
-  espconn_regist_time(conn, 5, 1);
+  espconn_regist_time(conn, 60, 1);
+  // espconn_tcp_set_max_con_allow(conn, 4);
   espconn_regist_connectcb(conn, &onConnect);
   espconn_regist_recvcb(conn, &onReceive);
   espconn_regist_disconcb(conn, &onDisconnect);

@@ -1,5 +1,6 @@
 #define MAX_SLOTS 256
 #define MAX_STACK_SIZE 64
+#define MAX_STACK_CURSOR MAX_STACK_SIZE - 1
 #define MAX_PRINT_BUFFER 1024
 #define MAX_PRINT_CURSOR MAX_PRINT_BUFFER - 1
 
@@ -138,7 +139,7 @@ public:
   halt_callback onHalt = 0;
 
   int callStack[MAX_STACK_SIZE];
-  int callStackPointer = MAX_STACK_SIZE - 1;
+  int callStackCursor = 0;
 
   char printBuffer[MAX_PRINT_BUFFER];
   int printBufferCursor = 0;
@@ -156,37 +157,42 @@ public:
 
   int callStackPush(int value)
   {
-    if (callStack[callStackPointer] == value)
+    if (callStackCursor >= MAX_STACK_CURSOR)
     {
-      return 0;
-    }
-
-    if (callStackPointer == 0)
-    {
+      os_printf("MAX stack");
       paused = true;
       return -1;
     }
 
-    callStackPointer--;
-    callStack[callStackPointer] = counter;
+    if (callStack[callStackCursor] == value)
+    {
+      return 0;
+    }
+
+    callStack[callStackCursor++] = counter;
     return 1;
   }
 
   int callStackPop()
   {
-    if (callStackPointer + 1 >= MAX_STACK_SIZE)
+    if (callStackCursor == 0)
     {
+      os_printf("MIN stack");
       paused = true;
       return -1;
     }
 
-    counter = callStack[callStackPointer];
-    callStackPointer++;
+    counter = callStack[callStackCursor--];
     return 1;
   }
 
   void flush()
   {
+    if (printBufferCursor == 0)
+    {
+      return;
+    }
+
     onSend(printBuffer, printBufferCursor);
     printBufferCursor = 0;
     os_memset(&printBuffer, 0, MAX_PRINT_BUFFER);
