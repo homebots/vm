@@ -400,15 +400,21 @@ void MOVE_TO_FLASH vm_dump(Program *p)
   _debug(p, "\nSlots\n");
   for (i = 0; i < MAX_SLOTS; i++)
   {
-    _debug(p, "%d: '", i);
-    _printValue(p, p->slots[i]);
-    _debug(p, "'\n");
+    if (p->slots[i].getType() != vt_null)
+    {
+      _debug(p, "%d: '", i);
+      _printValue(p, p->slots[i]);
+      _debug(p, "'\n");
+    }
   }
 
   _debug(p, "\nInterrupts\n");
   for (i = 0; i < NUMBER_OF_PINS; i++)
   {
-    _debug(p, "%d: %d\n", i, p->interruptHandlers[i]);
+    if (p->interruptHandlers[i])
+    {
+      _debug(p, "%d: %d\n", i, p->interruptHandlers[i]);
+    }
   }
 }
 
@@ -619,6 +625,7 @@ void MOVE_TO_FLASH vm_load(Program *program, byteref _bytes, int length)
   program->endOfTheProgram = length;
   program->reset();
 
+  os_timer_disarm(&program->timer);
   os_timer_setfn(&program->timer, &vm_tick, program);
   os_timer_arm(&program->timer, 1, 0);
 }

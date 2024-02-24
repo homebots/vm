@@ -164,7 +164,7 @@ public:
       return -1;
     }
 
-    if (callStack[callStackCursor] == counter)
+    if (callStack[callStackCursor - 1] == counter)
     {
       return 0;
     }
@@ -194,7 +194,8 @@ public:
     int i = 0;
     for (; i <= MAX_STACK_CURSOR; i++)
     {
-      os_printf("  %d\n", callStack[i]);
+      if (callStack[i])
+        os_printf("  %d\n", callStack[i]);
     }
   }
 
