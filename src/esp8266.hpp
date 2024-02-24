@@ -2,6 +2,7 @@
 
 #define MAX_DELAY 6871000
 #define NUMBER_OF_PINS 4
+
 #include "sdk.h"
 
 #define Timer os_timer_t

@@ -1,7 +1,6 @@
-#include "osapi.h"
-
 #define MAX_SLOTS 256
 #define MAX_STACK_SIZE 64
+#define MAX_PRINT_BUFFER 1024
 
 #define vt_null 0
 #define vt_identifier 1
@@ -12,7 +11,7 @@
 #define vt_signedInteger 6
 #define vt_string 7
 
-static char *printBuffer = (char *)malloc(1024);
+static char *printBuffer = (char *)malloc(MAX_PRINT_BUFFER);
 
 typedef unsigned char byte;
 typedef unsigned char *byteref;
@@ -184,12 +183,16 @@ public:
 
   void printf(const char *format, va_list args)
   {
-    os_memset(printBuffer, 0, 1024);
-    char *p = (char *)format;
+    os_memset(printBuffer, 0, MAX_PRINT_BUFFER);
     int len = 0;
+
+    char *p = (char *)format;
 
     for (; *p; p++)
     {
+      if (len >= MAX_PRINT_BUFFER)
+        break;
+
       if (*p != '%')
       {
         printBuffer[len++] = (*p);
@@ -199,15 +202,20 @@ public:
       {
       case 'd':
       {
+        if (sizeof(int) > MAX_PRINT_BUFFER - len)
+        {
+          break;
+        }
+
         int d = va_arg(args, int);
-        int c = ets_sprintf(printBuffer + len, "%d", d);
+        int c = os_sprintf(printBuffer + len, "%d", d);
         len += c - 1;
         break;
       }
       case 'x':
       {
         int d = va_arg(args, int);
-        int c = ets_sprintf(printBuffer + len, "%02x", d);
+        int c = os_sprintf(printBuffer + len, "%02x", d);
         len += c - 1;
         break;
       }
@@ -220,7 +228,13 @@ public:
       case 's':
       {
         char *s = va_arg(args, char *);
-        int slen = strlen(s);
+        int slen = os_strlen(s);
+
+        if (slen > MAX_PRINT_BUFFER - len)
+        {
+          slen = MAX_PRINT_BUFFER - len - 1;
+        }
+
         os_memcpy(printBuffer + len, s, slen);
         len += slen;
         break;
@@ -231,6 +245,9 @@ public:
       }
     }
 
-    onSend(printBuffer, len);
+    if (len)
+    {
+      onSend(printBuffer, len);
+    }
   }
 };
