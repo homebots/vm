@@ -1,6 +1,7 @@
 #define MAX_SLOTS 256
 #define MAX_STACK_SIZE 64
 #define MAX_PRINT_BUFFER 1024
+#define MAX_PRINT_CURSOR MAX_PRINT_BUFFER - 1
 
 #define vt_null 0
 #define vt_identifier 1
@@ -12,6 +13,7 @@
 #define vt_string 7
 
 static char *printBuffer = (char *)malloc(MAX_PRINT_BUFFER);
+static int printBufferCursor = 0;
 
 typedef unsigned char byte;
 typedef unsigned char *byteref;
@@ -181,73 +183,85 @@ public:
     return 1;
   }
 
+  void flush()
+  {
+    onSend(printBuffer, printBufferCursor);
+    printBufferCursor = 0;
+    os_memset(printBuffer, 0, MAX_PRINT_BUFFER);
+  }
+
+  void putchar(char c)
+  {
+    if (printBufferCursor >= MAX_PRINT_CURSOR)
+    {
+      flush();
+    }
+
+    printBuffer[printBufferCursor++] = c;
+
+    if (c == '\n')
+    {
+      flush();
+    }
+  }
+
+  void putchars(const char *c, int len)
+  {
+    int i = 0;
+
+    for (; i < len; i++)
+    {
+      putchar(c[i]);
+    }
+  }
+
   void printf(const char *format, va_list args)
   {
-    os_memset(printBuffer, 0, MAX_PRINT_BUFFER);
-    int len = 0;
 
+    char *s = va_arg(args, char *);
     char *p = (char *)format;
+    char number[8];
 
     for (; *p; p++)
     {
-      if (len >= MAX_PRINT_BUFFER)
-        break;
-
       if (*p != '%')
       {
-        printBuffer[len++] = (*p);
+        putchar(*p);
         continue;
       }
+
       switch (*++p)
       {
       case 'd':
       {
-        if (sizeof(int) > MAX_PRINT_BUFFER - len)
-        {
-          break;
-        }
-
         int d = va_arg(args, int);
-        int c = os_sprintf(printBuffer + len, "%d", d);
-        len += c - 1;
+        int c = os_sprintf(number, "%d", d);
+        putchars(number, c);
         break;
       }
       case 'x':
       {
         int d = va_arg(args, int);
-        int c = os_sprintf(printBuffer + len, "%02x", d);
-        len += c - 1;
+        int c = os_sprintf(number, "%02x", d);
+        putchars(number, c);
         break;
       }
       case 'c':
       {
         char c = va_arg(args, int);
-        printBuffer[len++] = c;
+        putchar(c);
         break;
       }
       case 's':
       {
         char *s = va_arg(args, char *);
-        int slen = os_strlen(s);
-
-        if (slen > MAX_PRINT_BUFFER - len)
-        {
-          slen = MAX_PRINT_BUFFER - len - 1;
-        }
-
-        os_memcpy(printBuffer + len, s, slen);
-        len += slen;
+        putchars(s, strlen(s));
         break;
       }
       default:
-        printBuffer[len++] = (*p);
+        putchar(*p);
         break;
       }
-    }
-
-    if (len)
-    {
-      onSend(printBuffer, len);
     }
   }
 };

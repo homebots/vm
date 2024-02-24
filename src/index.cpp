@@ -1,4 +1,4 @@
-#define WITH_DEBUG
+// #define WITH_DEBUG
 #define SERIAL_SPEED 115200
 #define __CHIP_ESP8266__
 
@@ -155,7 +155,6 @@ void onReceive(void *arg, char *data, unsigned short length)
 
 void onSend(char *data, int length)
 {
-  // TRACE("send %d bytes, state %d\n", length, conn->state);
   if (conn->state == ESPCONN_CONNECT || conn->state == ESPCONN_WRITE)
   {
     espconn_send(conn, (uint8 *)data, length);
@@ -164,7 +163,6 @@ void onSend(char *data, int length)
 
 void onHalt()
 {
-  TRACE("halt, state %d\n", conn->state);
   if (conn->state == ESPCONN_CONNECT)
   {
     espconn_disconnect(conn);
