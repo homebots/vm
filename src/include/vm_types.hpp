@@ -12,9 +12,6 @@
 #define vt_signedInteger 6
 #define vt_string 7
 
-static char *printBuffer = (char *)malloc(MAX_PRINT_BUFFER);
-static int printBufferCursor = 0;
-
 typedef unsigned char byte;
 typedef unsigned char *byteref;
 typedef unsigned int uint;
@@ -143,6 +140,9 @@ public:
   int callStack[MAX_STACK_SIZE];
   int callStackPointer = MAX_STACK_SIZE - 1;
 
+  char printBuffer[MAX_PRINT_BUFFER];
+  int printBufferCursor = 0;
+
   void reset()
   {
     counter = 0;
@@ -150,6 +150,8 @@ public:
 
     os_memset(&interruptHandlers, 0, NUMBER_OF_PINS * sizeof(uint));
     os_memset(&callStack, 0, MAX_STACK_SIZE * sizeof(int));
+    os_memset(&printBuffer, 0, MAX_PRINT_BUFFER);
+    printBufferCursor = 0;
   }
 
   int callStackPush(int value)
@@ -187,7 +189,7 @@ public:
   {
     onSend(printBuffer, printBufferCursor);
     printBufferCursor = 0;
-    os_memset(printBuffer, 0, MAX_PRINT_BUFFER);
+    os_memset(&printBuffer, 0, MAX_PRINT_BUFFER);
   }
 
   void putchar(char c)
@@ -217,8 +219,6 @@ public:
 
   void printf(const char *format, va_list args)
   {
-
-    char *s = va_arg(args, char *);
     char *p = (char *)format;
     char number[8];
 

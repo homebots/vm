@@ -21,7 +21,7 @@
 static Program program;
 static os_timer_t wifiTimer;
 static struct espconn *conn;
-static const char *httpOK = "HTTP/1.1 200 OK\r\n\r\n\r\n";
+static const char *httpOK = "HTTP/1.1 200 OK\r\n\r\n";
 static const char *httpNotOK = "HTTP/1.1 400 Bad payload\r\n\r\n";
 static const char separator[4] = {0x0d, 0x0a, 0x0d, 0x0a};
 
@@ -35,22 +35,14 @@ void checkConnection(void *arg)
 {
   if (!wifi.isConnected())
   {
-    TRACE("wifi off\n");
     if (ESPCONN_CLOSE != conn->state)
     {
       espconn_disconnect(conn);
     }
 
     uint8 status = wifi_station_get_connect_status();
-    if (status == STATION_WRONG_PASSWORD)
-    {
-      TRACE("wrong password\n");
-      return;
-    }
-
     if (status != STATION_CONNECTING)
     {
-      TRACE("connect to '%s'/'%s'\n", WIFI_SSID, WIFI_PASSWORD);
       wifi.connectTo(WIFI_SSID, WIFI_PASSWORD);
     }
 
@@ -58,56 +50,14 @@ void checkConnection(void *arg)
     return;
   }
 
+  // todo will kill active connections
   if (conn->state != ESPCONN_LISTEN)
   {
-    TRACE("not started: %d\n", conn->state);
     espconn_accept(conn);
-    checkAgain();
-    return;
   }
 
-  switch (conn->state)
-  {
-  case ESPCONN_NONE:
-    TRACE("Not started\n");
-    break;
-
-  case ESPCONN_WAIT:
-    TRACE("Waiting\n");
-    break;
-
-  case ESPCONN_LISTEN:
-    TRACE("Listening on %d\n", conn->proto.tcp->local_port);
-    break;
-
-  case ESPCONN_CONNECT:
-    TRACE("Connecting\n");
-    break;
-
-  case ESPCONN_CLOSE:
-    TRACE("Closed\n");
-    break;
-
-  case ESPCONN_WRITE:
-  case ESPCONN_READ:
-    TRACE("Buffered\n");
-    break;
-  }
-
-  if (conn->state != ESPCONN_LISTEN)
-  {
-    checkAgain();
-  }
+  checkAgain();
 }
-
-// void printBuffer(char *data, unsigned short length)
-// {
-//   int i = 0;
-//   while (i < length)
-//   {
-//     TRACE("%02x ", data[i++]);
-//   }
-// }
 
 void onReceive(void *arg, char *data, unsigned short length)
 {
@@ -116,11 +66,12 @@ void onReceive(void *arg, char *data, unsigned short length)
 
   if (strncmp(data, "GET", 3) == 0)
   {
-    TRACE("Status\n");
     espconn_send(conn, (uint8 *)httpOK, strlen(httpOK));
+    espconn_regist_time(conn, 7199, 1);
+    espconn_tcp_set_max_con_allow(conn, 4);
+    program.flush();
     // vm_systemInformation(&program);
     // vm_dump(&program);
-    // espconn_disconnect(conn);
     return;
   }
 
@@ -178,7 +129,6 @@ void onDisconnect(void *arg)
 
 void onReconnect(void *arg, int error)
 {
-  TRACE("Reconnected after error %d\n", error);
   checkAgain();
 }
 

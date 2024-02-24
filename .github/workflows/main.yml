@@ -70,20 +70,5 @@ jobs:
       - name: Upload to ESP flash
         run: |
           set -e
-          curl -sS -X POST ${{ secrets.ESP_LIVE_URL }}/prepare
-          echo Upload
-
-          ls firmware/
-
-          for i in $(ls firmware/ -1 | grep '0x'); do
-            curl -sS ${{ secrets.ESP_LIVE_URL }}/upload/$i --data-binary @firmware/$i;
-          done
-
-          echo Flash
-          curl -sS -X POST ${{ secrets.ESP_LIVE_URL }}/flash
-          echo Reset
-          curl -sS -X POST ${{ secrets.ESP_LIVE_URL }}/reset
-          sleep 5
-          echo Reconnect
-          curl -sS -X POST ${{ secrets.ESP_LIVE_URL }}/connect
-          echo Completed
+          export ESP_LIVE_URL="${{ secrets.ESP_LIVE_URL }}"
+          sh test-remote.sh
