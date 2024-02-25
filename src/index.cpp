@@ -112,10 +112,11 @@ void onSend(char *data, int length)
 
 void onHalt()
 {
-  // if (conn->state == ESPCONN_CONNECT)
-  // {
-  //   espconn_disconnect(conn);
-  // }
+  if (conn->state != ESPCONN_LISTEN)
+  {
+    espconn_disconnect(conn);
+    checkAgain();
+  }
 }
 
 void onDisconnect(void *arg)
