@@ -50,6 +50,7 @@
 #define op_ioallout 0x47
 #define op_iointerrupt 0x48
 #define op_iointerruptToggle 0x49
+#define op_ioallinput 0x50
 
 // wifi [0x60..0x6f]
 #define op_wifistatus 0x60

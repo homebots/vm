@@ -1,5 +1,3 @@
-// ========= Internals =========
-
 void vm_next(Program *p);
 void _printf(Program *p, const char *format, ...) __attribute__((format(printf, 2, 3)));
 void _printf(Program *p, const char *format, ...)
@@ -644,7 +642,7 @@ void vm_next(Program *p)
     break;
 
   case op_define:
-    // counter += _readValue(p).toInteger();
+    p->counter += _readValue(p).toInteger();
     break;
 
   case op_restart:
