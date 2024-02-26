@@ -103,7 +103,6 @@ void onReceive(void *arg, char *data, unsigned short length)
 
 void onSend(char *data, int length)
 {
-  TRACE("%s", data);
   if (conn->state == ESPCONN_WRITE)
   {
     espconn_send(conn, (uint8 *)data, length);

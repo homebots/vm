@@ -147,6 +147,7 @@ void vm_tick(void *p)
   {
     int delay = program->delayTime;
     program->delayTime = 0;
+    program->flush();
     os_timer_disarm(&program->timer);
     os_timer_arm(&program->timer, (uint32)delay, 0);
   }

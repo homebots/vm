@@ -219,11 +219,6 @@ public:
     }
 
     printBuffer[printBufferCursor++] = c;
-
-    if (c == '\n')
-    {
-      flush();
-    }
   }
 
   void putchars(const char *c, int len)
