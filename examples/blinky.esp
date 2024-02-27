@@ -1,10 +1,20 @@
-// blink a pin every 2 seconds
+debug true
 
-byte $value = 0h
-io_all_output
+fn on {
+  io_write #0, true
+  delay 1000
+}
 
-def loop
-  io write pin 2, $value
-  $value = not $value
-  delay 2000
-  loop()
+fn off {
+  io_write #0, false
+  delay 1000
+}
+
+fn loop {
+  on()
+  off()
+  on()
+  off()
+}
+
+loop()

@@ -72,12 +72,13 @@ void *os_zalloc(int size)
   return p;
 }
 
-#define os_printf vprintf
-#define os_sprintf vsprintf
+#define os_printf ::printf
+#define os_sprintf sprintf
 #define os_strlen strlen
 #define os_time intnoop
 #define os_restart noop
 #define os_freeHeapSize intnoop
+#define os_memset memset
 
 typedef void timerCallback(void *arg);
 
