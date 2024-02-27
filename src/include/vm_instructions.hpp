@@ -156,10 +156,12 @@ void vm_tick(void *p)
 void _onInterruptTriggered(void *arg, byte pin)
 {
   Program *p = (Program *)arg;
-  p->counter = p->interruptHandlers[pin];
-  p->paused = false;
-
-  vm_tick(p);
+  if (p->callStackPush() != -1)
+  {
+    p->counter = p->interruptHandlers[pin];
+    p->paused = false;
+    vm_tick(p);
+  }
 }
 
 // ========= Instructions =========
@@ -270,6 +272,7 @@ void MOVE_TO_FLASH vm_halt(Program *p)
   }
 
   p->onHalt();
+  p->flush();
 }
 
 void MOVE_TO_FLASH vm_yield(Program *p)
@@ -806,7 +809,8 @@ void vm_next(Program *p)
     break;
 
   default:
-    _printf(p, "\n[!] Invalid operation: %d\n", next);
+    os_printf("[!] Invalid operation: %d\n", next);
+    p->stackTrace();
     vm_halt(p);
   }
 
