@@ -12,6 +12,7 @@
 #define vt_integer 5
 #define vt_signedInteger 6
 #define vt_string 7
+#define vt_blob 8
 
 typedef unsigned char byte;
 typedef unsigned char *byteref;
@@ -19,6 +20,8 @@ typedef unsigned int uint;
 typedef unsigned int *uintref;
 typedef unsigned int uint32;
 typedef unsigned long long uint64;
+
+class Buffer;
 
 class Value
 {
@@ -177,7 +180,6 @@ public:
   {
     if (callStackCursor == 0)
     {
-      os_printf("MIN stack");
       paused = true;
       return -1;
     }
@@ -206,7 +208,11 @@ public:
       return;
     }
 
-    onSend(printBuffer, printBufferCursor);
+    if (onSend)
+    {
+      onSend(printBuffer, printBufferCursor);
+    }
+
     printBufferCursor = 0;
     os_memset(&printBuffer, 0, MAX_PRINT_BUFFER);
   }
@@ -277,5 +283,144 @@ public:
         break;
       }
     }
+  }
+};
+
+class Buffer
+{
+  byteref cursor = 0;
+  byteref bytes = 0;
+  byteref max = 0;
+  int size = 0;
+
+public:
+  void free()
+  {
+    os_free(bytes);
+    bytes = 0;
+    cursor = 0;
+    size = 0;
+    max = 0;
+  }
+
+  void alloc(int length) {
+    if (bytes != 0) {
+      os_free(bytes);
+    }
+
+    bytes = (byteref)os_zalloc(length);
+  }
+
+  void load(byteref b, int length)
+  {
+    alloc(length);
+    os_memcpy(bytes, b, length);
+    size = length;
+    max = b + length;
+    cursor = bytes;
+  }
+
+  bool hasBytes()
+  {
+    return cursor < max;
+  }
+
+  byte readByte()
+  {
+    byte ref = *cursor;
+    cursor++;
+    return ref;
+  }
+
+  void write(Value *v)
+  {
+    auto type = v->getType();
+    int *p;
+    byteref s;
+
+    switch (type)
+    {
+    case vt_byte:
+      *cursor = vt_byte;
+      cursor++;
+      *cursor = v->toByte();
+      cursor += 2;
+      break;
+
+    case vt_integer:
+      *cursor = vt_integer;
+      cursor++;
+      p = (int *)bytes;
+      *p = v->toInteger();
+      cursor += 4;
+      break;
+
+    case vt_signedInteger:
+      break;
+
+    case vt_string:
+    {
+      int len = strlen((const char *)s);
+      *cursor = vt_string;
+      cursor++;
+      os_memcpy(cursor, s, len);
+      cursor += len;
+    }
+    break;
+
+    case vt_address:
+      *cursor = vt_integer;
+      cursor++;
+      p = (int *)cursor;
+      *p = v->fromAddress();
+      cursor += 4;
+      break;
+
+    case vt_pin:
+      *cursor = vt_byte;
+      cursor++;
+      *cursor = (uint8)v->fromPin();
+      cursor++;
+
+    default:
+      break;
+    }
+  }
+
+  Value readValue()
+  {
+    Value value;
+    byteref ref;
+    byte type = *cursor;
+    cursor++;
+
+    switch (type)
+    {
+    case vt_byte:
+    case vt_pin:
+    case vt_identifier:
+      value.update(type, (void *)cursor);
+      cursor++;
+      break;
+
+    case vt_null:
+      value.update(type, 0);
+      cursor++;
+      break;
+
+    case vt_integer:
+    case vt_address:
+      value.update(type, (void *)cursor);
+      cursor += 4;
+      break;
+
+    case vt_string:
+      value.update(type, (void *)cursor);
+      // extra \0 at the end of string
+      bytes += os_strlen((const char *)ref) + 1;
+      break;
+    }
+
+    return value;
   }
 };

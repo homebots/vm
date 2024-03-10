@@ -64,6 +64,15 @@ Value _readValue(Program *p)
     p->counter += os_strlen((const char *)ref) + 1;
     value.update(type, (void *)ref);
     break;
+
+  case vt_blob:
+    byteref ref = p->bytes;
+    ref += p->counter;
+    int length = *((int *)ref);
+    ref += 4;
+    Buffer *b = (Buffer *)os_zalloc(sizeof(Buffer));
+    b->load(ref, length);
+    value.update(type, b, true);
   }
 
   return value;
@@ -160,7 +169,8 @@ void _onInterruptTriggered(void *arg, byte pin)
   {
     p->counter = p->interruptHandlers[pin];
     p->paused = false;
-    vm_tick(p);
+    os_timer_disarm(&p->timer);
+    os_timer_arm(&p->timer, 1, 0);
   }
 }
 
@@ -611,7 +621,7 @@ void MOVE_TO_FLASH vm_i2cread(Program *p)
   _debug(p, "i2cread %d\n", value);
 }
 
-void MOVE_TO_FLASH vm_load(Program *program, byteref _bytes, int length)
+void MOVE_TO_FLASH program_load(Program *program, byteref _bytes, int length)
 {
   if (program->bytes != nullptr && program->endOfTheProgram < length)
   {

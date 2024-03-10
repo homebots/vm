@@ -93,7 +93,7 @@ void onReceive(void *arg, char *data, unsigned short length)
   {
     TRACE("Running %d bytes\n", length - i);
     espconn_send(conn, (uint8 *)httpOK, strlen(httpOK));
-    vm_load(&program, (unsigned char *)data + i, length - i);
+    program_load(&program, (unsigned char *)data + i, length - i);
     return;
   }
 

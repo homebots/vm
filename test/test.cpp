@@ -51,7 +51,7 @@ int main(int argc, char **argv)
 
   fread(buffer, sizeof(char), length, file);
   fclose(file);
-  vm_load(&program, buffer, length);
+  program_load(&program, buffer, length);
   free(buffer);
 
   vm_tick(&program);

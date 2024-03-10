@@ -62,7 +62,7 @@ uint8 bytenoop(...)
 #define os_mem_write noop
 #define os_memcpy memcpy
 
-#define os_free free
+#define os_free ::free
 #define os_realloc realloc
 
 void *os_zalloc(int size)
@@ -118,15 +118,15 @@ void os_io_allOutput()
 
 void os_wifi_ap()
 {
-  printf("wifi AP mode\n");
+  printf("stub: wifi AP mode\n");
 }
 
 void os_wifi_connect(const char *ssid, const char *password)
 {
-  printf("wifi connect %s, %s\n", ssid, password);
+  printf("stub: wifi connect %s, %s\n", ssid, password);
 }
 
 void os_wifi_disconnect()
 {
-  printf("wifi disconnect\n");
+  printf("stub: wifi disconnect\n");
 }
